@@ -111,10 +111,11 @@ const participantData = [
 const parseFolderName = (folderName) => {
   const parts = folderName.split('_');
   const empId = parts[parts.length - 1];
-  const name = parts.slice(0, parts.length - 1).join(' ');
+  // Take only the first two parts for the name
+  const nameParts = parts.slice(0, 2);
+  const name = nameParts.join(' ');
   return { name, empId };
 };
-
 const roles = ["TC", "DFM", "SHE", "HSE", "PSC", "SNE", "DSE", "DPH", "TCI"];
 
 const generateParticipants = () => {
@@ -488,7 +489,7 @@ const generateParticipants = () => {
                 return <rect key={idx} x={x} y="0" width={w} height="20" fill="currentColor" />;
               })}
             </svg>
-            <span className="text-amber-400 text-xs">★★★</span>
+            <span className="text-amber-400 text-xs">★★★★★</span>
           </div>
           <p className="mt-2 text-sm font-bold text-gray-800">CONTROLLER PANEL</p>
           <div className="mt-1 flex items-center gap-1.5">
@@ -601,7 +602,7 @@ const generateParticipants = () => {
                       </div>
 
                       <div className="mt-0.5 w-full truncate text-center text-[10px] font-semibold leading-tight text-black">
-                        {p.name.split(" ")[0]}
+                      {p.name}
                       </div>
 
                       {/* Trainer name */}
