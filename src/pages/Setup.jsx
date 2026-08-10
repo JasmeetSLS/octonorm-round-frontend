@@ -48,51 +48,103 @@ export default function DigitalFlow() {
   ];
 
   // Trainer/Evaluator names
-  const trainerNames = [
-    "Abhisheks", "Pooja Bora", "Hitendra", "Manjira", "Amit",
-    "Sagar", "Vinendra", "Balshree", "Madhu TV", "Mithir"
-  ];
+const trainerNames = [
+  "Abhisheks", "Pooja Bora", "Hitendra", "Manjira", "Amit",
+  "Sagar", "Vinendra", "Balshree", "Madhu TV", "Mithir"
+];
 
-  const generateParticipants = () => {
-    const firstNames = [
-      "Komal", "Preeti", "Chanchal", "Sahdev", "Abhijit", "Rozaliben", "Yogesh", "Ankita", "Uttam", "Radhika",
-      "Prashanth", "Amaan", "Sourabh", "Moh", "Kunal", "Brajmohan", "Suman", "Anchalben", "Shahrukh", "Ashu",
-      "Soumen", "Rimjhim", "Syfula", "Aman", "Susheel", "Sanskar", "Lanka", "Ramesh", "Shampa", "Ayub",
-      "Jignesh", "Mamta", "Subhajit", "Divya", "Ghanta", "Mohd. Aleem", "Ahmad", "Jyoti", "Hindera", "Manjira",
-      "Sagar", "Amit", "Virendra", "Balpreet", "Madhu TV", "Mihir", "Nikhil", "Arun", "Ravi", "Manoj"
-    ];
-    const lastNames = ["Mathur", "Ahirwar", "Vishwakarma", "Singh", "Roy", "Parmar", "Mali", "Banarjee", "Arya", "Nagar"];
-    const roles = ["TC", "DFM", "SHE", "HSE", "PSC", "SNE", "DSE", "DPH", "TCI"];
+// Participant folder names with their assigned trainers (based on your list)
+const participantData = [
+  { folder: "Aiswarya_Vijayan_18655", trainer: "Abhisheks" },
+  { folder: "Anson_Daniel_90226540", trainer: "Pooja Bora" },
+  { folder: "Athi_Raja_503666", trainer: "Hitendra" },
+  { folder: "D_Shanker_Naik_503825", trainer: "Manjira" },
+  { folder: "Hanuma_Ram_503709", trainer: "Amit" },
+  { folder: "Lavanya_Sen_18642", trainer: "Sagar" },
+  { folder: "Mari_Prakash_503816", trainer: "Vinendra" },
+  { folder: "Nisha_Patel_16362", trainer: "Balshree" },
+  { folder: "Prasanth_Josi_16367", trainer: "Madhu TV" },
+  { folder: "Ramachandran_S_90178761", trainer: "Mithir" },
+  { folder: "Samarth___90163255", trainer: "Abhisheks" },
+  { folder: "Sravan_Reddy_18349", trainer: "Pooja Bora" },
+  { folder: "Vallabhaneni_Kumar_16158", trainer: "Hitendra" },
+  { folder: "Akash_B_18087", trainer: "Manjira" },
+  { folder: "Arun_K_Narayan_19225", trainer: "Amit" },
+  { folder: "Barath_Selvakumar_90236226", trainer: "Sagar" },
+  { folder: "DHANASEALAN_L_18247", trainer: "Vinendra" },
+  { folder: "K_JAGADEESHWARRREDDY_16401", trainer: "Balshree" },
+  { folder: "Mahesh_Bavirisetti_13961", trainer: "Madhu TV" },
+  { folder: "Mohamed_Anishkhan_16245", trainer: "Mithir" },
+  { folder: "Pankaj_Khode_14880", trainer: "Abhisheks" },
+  { folder: "Prashantha_Kumara_D_K_10801", trainer: "Pooja Bora" },
+  { folder: "Rayies_S_90185205", trainer: "Hitendra" },
+  { folder: "Samiksha_Lajurkar_16638", trainer: "Manjira" },
+  { folder: "Sridharan_K_M_90184106", trainer: "Amit" },
+  { folder: "Venkatesh_90205575", trainer: "Sagar" },
+  { folder: "Anil___90222590", trainer: "Vinendra" },
+  { folder: "Ashita_Jain_16669", trainer: "Balshree" },
+  { folder: "Bhavana_Choudhary_17656", trainer: "Madhu TV" },
+  { folder: "Dileep___503845", trainer: "Mithir" },
+  { folder: "karthick_M_19128", trainer: "Abhisheks" },
+  { folder: "Manikanta___90176461", trainer: "Pooja Bora" },
+  { folder: "Moorthy_V_18103", trainer: "Hitendra" },
+  { folder: "Perumandla_Vivekananda_16365", trainer: "Manjira" },
+  { folder: "R_Sesha_Sai_16134", trainer: "Amit" },
+  { folder: "S_Rajeshwar_Reddy_17347", trainer: "Sagar" },
+  { folder: "Santosh_M_17256", trainer: "Vinendra" },
+  { folder: "Srikar___16091", trainer: "Balshree" },
+  { folder: "Annapragada_Dheeraj_18929", trainer: "Madhu TV" },
+  { folder: "Ashker_PP_503747", trainer: "Mithir" },
+  { folder: "Buddharaju_Seetaramaraju_16087", trainer: "Abhisheks" },
+  { folder: "Gulothungan_16699", trainer: "Pooja Bora" },
+  { folder: "Kiran_P_Revankar_P015509", trainer: "Hitendra" },
+  { folder: "Manoj_Alandkar_90164475", trainer: "Manjira" },
+  { folder: "Natarajan___90240344", trainer: "Amit" },
+  { folder: "Prasad___90166297", trainer: "Sagar" },
+  { folder: "Rakesh___503821", trainer: "Vinendra" },
+  { folder: "Sakshi_Dhangekar_16371", trainer: "Balshree" },
+  { folder: "Siddarthan_Ps_18941", trainer: "Madhu TV" },
+  { folder: "Sudish_Pai_17436", trainer: "Mithir" },
+];
 
-    const participants = [];
-    for (let i = 1; i <= 50; i++) {
-      const firstName = firstNames[(i - 1) % firstNames.length];
-      const lastName = lastNames[(i - 1) % lastNames.length];
-      const name = `${firstName} ${lastName}`;
-      const empId = `EMP${String(1000 + i).padStart(4, "0")}`;
-      const role = roles[(i - 1) % roles.length];
-      const trainerIndex = (i - 1) % trainerNames.length;
-      const trainerName = trainerNames[trainerIndex];
-      const octonormIndex = (i - 1) % octonormRooms.length;
+// Function to extract name and empId from folder name
+const parseFolderName = (folderName) => {
+  const parts = folderName.split('_');
+  const empId = parts[parts.length - 1];
+  const name = parts.slice(0, parts.length - 1).join(' ');
+  return { name, empId };
+};
 
-      participants.push({
-        id: `P${String(i).padStart(2, "0")}`,
-        name,
-        empId,
-        role,
-        image: `https://i.pravatar.cc/150?img=${(i % 70) + 1}`,
-        timer: null,
-        score: null,
-        booth: null,
-        evaluator: null,
-        trainer: trainerName,
-        trainerIndex: trainerIndex,
-        octonormId: octonormIndex + 1,
-        stage: "main", // main | holding | prep | eval | completed
-      });
-    }
-    return participants;
-  };
+const roles = ["TC", "DFM", "SHE", "HSE", "PSC", "SNE", "DSE", "DPH", "TCI"];
+
+const generateParticipants = () => {
+  const participants = [];
+  for (let i = 0; i < participantData.length; i++) {
+    const data = participantData[i];
+    const { name, empId } = parseFolderName(data.folder);
+    const role = roles[i % roles.length];
+    const trainerName = data.trainer;
+    const trainerIndex = trainerNames.indexOf(trainerName);
+    const octonormIndex = i % octonormRooms.length;
+
+    participants.push({
+      id: `P${String(i + 1).padStart(2, "0")}`,
+      name: name,
+      empId: empId,
+      role: role,
+      image: `/userImages/${data.folder}/profile.jpg`,
+      timer: null,
+      score: null,
+      booth: null,
+      evaluator: null,
+      trainer: trainerName,
+      trainerIndex: trainerIndex,
+      octonormId: octonormIndex + 1,
+      stage: "main",
+    });
+  }
+  return participants;
+};
 
   // Single flat array - array order = display order within each Octonorm room
   const [participants, setParticipants] = useState(generateParticipants());
@@ -551,9 +603,6 @@ export default function DigitalFlow() {
                       <div className="mt-0.5 w-full truncate text-center text-[10px] font-semibold leading-tight text-black">
                         {p.name.split(" ")[0]}
                       </div>
-                      {/* <div className="mt-0.5 w-full truncate text-center text-[10px] font-semibold leading-tight text-black">
-                        {p.empId}
-                      </div> */}
 
                       {/* Trainer name */}
                       <div className="mt-0.5 w-full truncate text-center text-[10px] font-semibold leading-tight text-gray-700">
@@ -565,10 +614,6 @@ export default function DigitalFlow() {
                           {formatTime(p.timer)}
                         </div>
                       )}
-
-                      {/* <div className={`mt-0.5 text-[8px] font-bold tracking-wide ${stage === "completed" ? "text-emerald-600" : "text-gray-500"}`}>
-                        {shortLabel}
-                      </div> */}
                     </div>
                   );
                 })}
