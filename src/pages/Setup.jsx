@@ -47,11 +47,24 @@ export default function DigitalFlow() {
     { id: 10, name: "Octonorm 10" },
   ];
 
-  // Trainer/Evaluator names
-const trainerNames = [
-  "Abhisheks", "Pooja Bora", "Hitendra", "Manjira", "Amit",
-  "Sagar", "Vinendra", "Balshree", "Madhu TV", "Mithir"
-];
+  // Trainer/Evaluator names with only background colors
+  const trainerColors = {
+    "Abhisheks": { bg: "bg-red-500" },
+    "Pooja Bora": { bg: "bg-blue-500" },
+    "Hitendra": { bg: "bg-green-500" },
+    "Manjira": { bg: "bg-yellow-500" },
+    "Amit": { bg: "bg-purple-500" },
+    "Sagar": { bg: "bg-pink-500" },
+    "Vinendra": { bg: "bg-indigo-500" },
+    "Balshree": { bg: "bg-teal-500" },
+    "Madhu TV": { bg: "bg-orange-500" },
+    "Mithir": { bg: "bg-cyan-500" },
+  };
+
+  const trainerNames = [
+    "Abhisheks", "Pooja Bora", "Hitendra", "Manjira", "Amit",
+    "Sagar", "Vinendra", "Balshree", "Madhu TV", "Mithir"
+  ];
 
 // Participant folder names with their assigned trainers (based on your list)
 const participantData = [
@@ -436,6 +449,24 @@ const generateParticipants = () => {
 
   const roomsData = getParticipantsByOctonorm();
 
+  // Trainer Legend Component
+  const TrainerLegend = () => {
+    const uniqueTrainers = [...new Set(participants.map(p => p.trainer))];
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        {uniqueTrainers.map((trainer) => {
+          const colors = trainerColors[trainer];
+          return (
+            <div key={trainer} className="flex items-center gap-1">
+              <span className={`h-2.5 w-2.5 rounded-full ${colors?.bg || 'bg-gray-400'}`} />
+              <span className="text-[9px] text-gray-600">{trainer}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[#F3F4F6] p-4 font-sans pb-24">
       {/* Top stat strip */}
@@ -499,6 +530,14 @@ const generateParticipants = () => {
         </div>
       </div>
 
+      {/* Trainer Legend */}
+      <div className="mb-3 rounded-xl border border-gray-200 bg-white px-4 py-2 shadow-sm">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-semibold text-gray-400">TRAINERS:</span>
+          <TrainerLegend />
+        </div>
+      </div>
+
       {/* Select mode toggle bar */}
       <div className="mb-3 flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-2.5 shadow-sm">
         <div className="flex items-center gap-2">
@@ -555,6 +594,7 @@ const generateParticipants = () => {
                   const shortLabel = stageShortLabels[stage];
                   const isDragging = draggedId === p.id;
                   const isSelected = selectedIds.has(p.id);
+                  const trainerColor = trainerColors[p.trainer];
 
                   return (
                     <div
@@ -602,12 +642,14 @@ const generateParticipants = () => {
                       </div>
 
                       <div className="mt-0.5 w-full truncate text-center text-[10px] font-semibold leading-tight text-black">
-                      {p.name}
+                        {p.name}
                       </div>
 
-                      {/* Trainer name */}
-                      <div className="mt-0.5 w-full truncate text-center text-[10px] font-semibold leading-tight text-gray-700">
-                        ({p.trainer})
+                      {/* Trainer name with colored background box */}
+                      <div className="mt-0.5 w-full flex justify-center">
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-semibold ${trainerColor?.bg || 'bg-gray-400'} text-white`}>
+                          {p.trainer}
+                        </span>
                       </div>
 
                       {p.timer > 0 && (
@@ -809,7 +851,9 @@ const generateParticipants = () => {
                 <div className="mt-1.5 flex items-center justify-between border-t border-gray-100 pt-1.5 text-xs">
                   <span className="text-gray-400">Trainer</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-gray-700 text-xs">{selectedParticipant.trainer}</span>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${trainerColors[selectedParticipant.trainer]?.bg || 'bg-gray-400'} text-white`}>
+                      {selectedParticipant.trainer}
+                    </span>
                     <button
                       onClick={() => handleChangeTrainerForParticipant(selectedParticipant)}
                       className="text-[9px] font-medium text-indigo-600 hover:text-indigo-800 transition"
@@ -876,22 +920,27 @@ const generateParticipants = () => {
 
             <div className="p-4 max-h-80 overflow-y-auto">
               <div className="space-y-1">
-                {trainerNames.map((trainer, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSelectTrainer(idx)}
-                    className={`w-full text-left px-4 py-2.5 rounded-xl text-sm transition flex items-center justify-between ${
-                      idx === selectedTrainerForParticipant.trainerIndex
-                        ? "ring-2 ring-indigo-500 bg-indigo-50"
-                        : "hover:bg-gray-100"
-                    }`}
-                  >
-                    <span className="text-gray-700">{trainer}</span>
-                    {idx === selectedTrainerForParticipant.trainerIndex && (
-                      <span className="text-[10px] font-bold text-indigo-600">✓ Current</span>
-                    )}
-                  </button>
-                ))}
+                {trainerNames.map((trainer, idx) => {
+                  const colors = trainerColors[trainer];
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => handleSelectTrainer(idx)}
+                      className={`w-full text-left px-4 py-2.5 rounded-xl text-sm transition flex items-center justify-between ${
+                        idx === selectedTrainerForParticipant.trainerIndex
+                          ? `ring-2 ring-indigo-500 ${colors?.bg || 'bg-gray-400'} text-white`
+                          : `hover:${colors?.bg || 'bg-gray-100'}`
+                      }`}
+                    >
+                      <span className={idx === selectedTrainerForParticipant.trainerIndex ? 'text-white' : 'text-gray-700'}>
+                        {trainer}
+                      </span>
+                      {idx === selectedTrainerForParticipant.trainerIndex && (
+                        <span className="text-[10px] font-bold text-white">✓ Current</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -934,15 +983,18 @@ const generateParticipants = () => {
 
             <div className="p-4 max-h-80 overflow-y-auto">
               <div className="space-y-1">
-                {trainerNames.map((trainer, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleBulkSelectTrainer(idx)}
-                    className="w-full text-left px-4 py-2.5 rounded-xl text-sm transition flex items-center justify-between hover:bg-gray-100"
-                  >
-                    <span className="text-gray-700">{trainer}</span>
-                  </button>
-                ))}
+                {trainerNames.map((trainer, idx) => {
+                  const colors = trainerColors[trainer];
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => handleBulkSelectTrainer(idx)}
+                      className={`w-full text-left px-4 py-2.5 rounded-xl text-sm transition flex items-center justify-between hover:${colors?.bg || 'bg-gray-100'} hover:text-white`}
+                    >
+                      <span className="text-gray-700">{trainer}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
