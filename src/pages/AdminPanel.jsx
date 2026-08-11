@@ -1,414 +1,394 @@
-// AdminPanel.jsx
-import { useState } from "react";
-import {
-  Settings,
-  Users,
-  UserCog,
-  Clock,
-  Calendar,
-  CheckCircle,
-  XCircle,
-  AlertCircle,
-  ChevronDown,
-  ChevronRight,
-  Plus,
-  Minus,
-  Save,
-  RefreshCw,
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  UserPlus,
-  ClipboardList,
-  Bell,
-  Play,
-  Pause,
-  Zap,
-  Upload,
-  FileText,
-} from "lucide-react";
+  import { useState, useEffect } from "react";
+  import axios from "axios";
+  import {
+    Settings,
+    Clock,
+    CheckCircle,
+    Plus,
+    Zap,
+    Upload,
+    FileText,
+    Loader,
+    MapPin,
+    Repeat,
+    Flag,
+    Trash2,
+    ChevronUp,
+    ChevronDown,
+  } from "lucide-react";
 
-export default function AdminPanel() {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [uploadedFile, setUploadedFile] = useState(null);
-  const [expandedSections, setExpandedSections] = useState({
-    manpower: true,
-    preparation: true,
-    evaluation: true,
-    reminders: true,
-  });
+  const API_URL = "http://localhost:5000/api";
 
-  const [setupData, setSetupData] = useState({
-    // Manpower
-    manpowerCount: 50,
-    roleHolderCategories: [
-      { id: 1, name: "TC", count: 10 },
-      { id: 2, name: "DFM", count: 8 },
-      { id: 3, name: "SHE", count: 6 },
-      { id: 4, name: "HSE", count: 6 },
-      { id: 5, name: "PSC", count: 5 },
-      { id: 6, name: "SNE", count: 5 },
-      { id: 7, name: "DSE", count: 4 },
-      { id: 8, name: "DPH", count: 4 },
-      { id: 9, name: "TCI", count: 2 },
-    ],
-    
-    // Preparation
-    preparationEnabled: true,
-    preparationBooths: 5,
-    preparationTimePerCase: 5,
-    autoClosePrep: true,
-    
-    // Evaluation
-    evaluationRounds: 2,
-    numberOfEvaluators: 5,
-    evaluatorToParticipantMapping: true,
-    timePerEvaluationRound: 10,
-    
-    // Reminders
-    reminderEnabled: true,
-    reminderCount: 3,
-    autoSubmit: true,
-  });
+  export default function AdminPanel() {
+    const [uploadedFile, setUploadedFile] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [showSuccess, setShowSuccess] = useState(false);
+    const [expandedSections, setExpandedSections] = useState({
+      movementChart: true,
+      holdAreaPre: true,
+      preparation: true,
+      evaluation: true,
+      holdAreaPost: true,
+    });
 
-  const totalSteps = 4;
-  const stepTitles = ["Manpower", "Preparation", "Evaluation", "Reminders"];
-  const stepIcons = [Users, Clock, UserCog, Bell];
-
-  const toggleSection = (section) => {
-    setExpandedSections((prev) => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
-  };
-
-  const updateCategoryCount = (id, newCount) => {
-    setSetupData((prev) => ({
-      ...prev,
-      roleHolderCategories: prev.roleHolderCategories.map((cat) =>
-        cat.id === id ? { ...cat, count: Math.max(0, newCount) } : cat
-      ),
-    }));
-  };
-
-  const addCategory = () => {
-    const newId = setupData.roleHolderCategories.length + 1;
-    setSetupData((prev) => ({
-      ...prev,
-      roleHolderCategories: [
-        ...prev.roleHolderCategories,
-        { id: newId, name: `Role ${newId}`, count: 0 },
+    const [setupData, setSetupData] = useState({
+      movementChartFile: null,
+      holdAreaPre: false,
+      preparationEnabled: true,
+      preparationBooths: 5,
+      preparationTime: 5,
+      preparationReminders: [
+        { id: 1, type: "before", minutes: 5 },
+        { id: 2, type: "after", minutes: 2 },
       ],
-    }));
-  };
+      autoClosePrep: true,
+      evaluationRounds: [
+        { id: 1, name: "Round 1", time: 10, holdArea: false, reminders: [] },
+        { id: 2, name: "Round 2", time: 15, holdArea: false, reminders: [] },
+      ],
+      holdAreaPost: false,
+    });
 
-  const removeCategory = (id) => {
-    setSetupData((prev) => ({
-      ...prev,
-      roleHolderCategories: prev.roleHolderCategories.filter((cat) => cat.id !== id),
-    }));
-  };
+    useEffect(() => {
+      loadSetup();
+    }, []);
 
-  const totalCount = setupData.roleHolderCategories.reduce((sum, cat) => sum + cat.count, 0);
+    const loadSetup = async () => {
+      setLoading(true);
+      try {
+        const response = await axios.get(`${API_URL}/setup`);
+        if (response.data.success) {
+          const data = response.data.data;
+          setSetupData((prev) => ({
+            ...prev,
+            holdAreaPre: data.setup?.hold_area_pre === 1 || false,
+            preparationEnabled: data.setup?.preparation_enabled === 1,
+            preparationBooths: data.setup?.preparation_booths || 5,
+            preparationTime: data.setup?.preparation_time || 5,
+            autoClosePrep: data.setup?.auto_close_prep === 1,
+            evaluationRounds:
+              data.evaluation_rounds?.length > 0
+                ? data.evaluation_rounds.map((round) => ({
+                    ...round,
+                    reminders: round.reminders || [],
+                  }))
+                : prev.evaluationRounds,
+            holdAreaPost: data.setup?.hold_area_post === 1 || false,
+          }));
+        }
+      } catch (error) {
+        console.error("Error loading setup:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const goToStep = (step) => {
-    if (step >= 1 && step <= totalSteps) {
-      setCurrentStep(step);
-    }
-  };
+    const saveAllSetup = async () => {
+      setSaving(true);
+      try {
+        const formData = new FormData();
 
-  const nextStep = () => {
-    if (currentStep < totalSteps) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
+        const setupConfig = {
+          holdAreaPre: setupData.holdAreaPre,
+          preparationEnabled: setupData.preparationEnabled,
+          preparationBooths: setupData.preparationBooths,
+          preparationTime: setupData.preparationTime,
+          preparationReminders: setupData.preparationReminders,
+          autoClosePrep: setupData.autoClosePrep,
+          evaluationRounds: setupData.evaluationRounds,
+          holdAreaPost: setupData.holdAreaPost,
+        };
 
-  const prevStep = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
+        formData.append("setup", JSON.stringify(setupConfig));
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setUploadedFile(file);
-    }
-  };
+        if (uploadedFile) {
+          formData.append("file", uploadedFile);
+        }
 
-  const ToggleSwitch = ({ enabled, onChange, label }) => (
-    <button
-      onClick={() => onChange(!enabled)}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-        enabled ? "bg-emerald-500" : "bg-gray-300"
-      }`}
-    >
-      <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-          enabled ? "translate-x-6" : "translate-x-1"
+        const response = await axios.post(`${API_URL}/setup`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+
+        if (response.data.success) {
+          setShowSuccess(true);
+          setTimeout(() => setShowSuccess(false), 3000);
+          await loadSetup();
+          setUploadedFile(null);
+        }
+      } catch (error) {
+        console.error("Error saving setup:", error);
+        alert("Failed to save setup");
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    const handleFileUpload = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const validTypes = [
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "application/vnd.ms-excel",
+          "text/csv",
+        ];
+
+        if (
+          validTypes.includes(file.type) ||
+          file.name.endsWith(".xlsx") ||
+          file.name.endsWith(".xls") ||
+          file.name.endsWith(".csv")
+        ) {
+          setUploadedFile(file);
+          setSetupData((prev) => ({ ...prev, movementChartFile: file }));
+        } else {
+          alert("Please upload a valid Excel or CSV file");
+          e.target.value = null;
+        }
+      }
+    };
+
+    const toggleSection = (section) => {
+      setExpandedSections((prev) => ({
+        ...prev,
+        [section]: !prev[section],
+      }));
+    };
+
+    // Evaluation round management
+    const addEvaluationRound = () => {
+      const newId = setupData.evaluationRounds.length + 1;
+      setSetupData((prev) => ({
+        ...prev,
+        evaluationRounds: [
+          ...prev.evaluationRounds,
+          { id: newId, name: `Round ${newId}`, time: 10, holdArea: false, reminders: [] },
+        ],
+      }));
+    };
+
+    const removeEvaluationRound = (id) => {
+      if (setupData.evaluationRounds.length <= 1) {
+        alert("At least one evaluation round is required");
+        return;
+      }
+      setSetupData((prev) => ({
+        ...prev,
+        evaluationRounds: prev.evaluationRounds.filter((round) => round.id !== id),
+      }));
+    };
+
+    const updateEvaluationRound = (id, field, value) => {
+      setSetupData((prev) => ({
+        ...prev,
+        evaluationRounds: prev.evaluationRounds.map((round) =>
+          round.id === id ? { ...round, [field]: value } : round
+        ),
+      }));
+    };
+
+    // Reminders for a specific evaluation round
+    const addRoundReminder = (roundId) => {
+      setSetupData((prev) => ({
+        ...prev,
+        evaluationRounds: prev.evaluationRounds.map((round) => {
+          if (round.id !== roundId) return round;
+          const newId = round.reminders.length + 1;
+          return {
+            ...round,
+            reminders: [...round.reminders, { id: newId, type: "before", minutes: 5 }],
+          };
+        }),
+      }));
+    };
+
+    const removeRoundReminder = (roundId, reminderId) => {
+      setSetupData((prev) => ({
+        ...prev,
+        evaluationRounds: prev.evaluationRounds.map((round) => {
+          if (round.id !== roundId) return round;
+          if (round.reminders.length <= 1) {
+            alert("At least one reminder is required per round");
+            return round;
+          }
+          return {
+            ...round,
+            reminders: round.reminders.filter((r) => r.id !== reminderId),
+          };
+        }),
+      }));
+    };
+
+    const updateRoundReminder = (roundId, reminderId, field, value) => {
+      setSetupData((prev) => ({
+        ...prev,
+        evaluationRounds: prev.evaluationRounds.map((round) => {
+          if (round.id !== roundId) return round;
+          return {
+            ...round,
+            reminders: round.reminders.map((r) =>
+              r.id === reminderId ? { ...r, [field]: value } : r
+            ),
+          };
+        }),
+      }));
+    };
+
+    // Preparation reminders (without message)
+    const addReminder = () => {
+      const newId = setupData.preparationReminders.length + 1;
+      setSetupData((prev) => ({
+        ...prev,
+        preparationReminders: [
+          ...prev.preparationReminders,
+          { id: newId, type: "before", minutes: 5 },
+        ],
+      }));
+    };
+
+    const removeReminder = (id) => {
+      if (setupData.preparationReminders.length <= 1) {
+        alert("At least one reminder is required");
+        return;
+      }
+      setSetupData((prev) => ({
+        ...prev,
+        preparationReminders: prev.preparationReminders.filter((reminder) => reminder.id !== id),
+      }));
+    };
+
+    const updateReminder = (id, field, value) => {
+      setSetupData((prev) => ({
+        ...prev,
+        preparationReminders: prev.preparationReminders.map((reminder) =>
+          reminder.id === id ? { ...reminder, [field]: value } : reminder
+        ),
+      }));
+    };
+
+    const ToggleSwitch = ({ enabled, onChange }) => (
+      <button
+        onClick={() => onChange(!enabled)}
+        className={`relative w-12 h-7 rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
+          enabled
+            ? "bg-gradient-to-r from-[#35e08f] to-[#16b567] shadow-[0_6px_16px_-4px_rgba(30,200,120,0.55)]"
+            : "bg-[#3a4278] shadow-inner"
         }`}
-      />
-    </button>
-  );
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-md transition-transform duration-200 ease-in-out ${
+            enabled ? "translate-x-5" : "translate-x-0"
+          }`}
+        />
+      </button>
+    );
 
-  // Render Step Content
-  const renderStepContent = () => {
-    switch (currentStep) {
-      case 1:
-        return (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between rounded-lg bg-blue-50 p-3">
-              <div>
-                <span className="text-sm font-medium text-blue-700">Total Count: {totalCount}</span>
-                <p className="text-xs text-blue-600">Role Holder Categories: 1-N</p>
-              </div>
-              <UserPlus className="h-8 w-8 text-blue-400" />
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="grid grid-cols-12 gap-2 px-2 text-xs font-semibold text-gray-400">
-                <div className="col-span-6">Category</div>
-                <div className="col-span-4 text-center">Count</div>
-                <div className="col-span-2 text-right">Action</div>
-              </div>
-              <div className="max-h-[320px] overflow-y-auto">
-                {setupData.roleHolderCategories.map((category) => (
-                  <div
-                    key={category.id}
-                    className="flex items-center gap-2 rounded-lg border border-gray-100 p-2 hover:bg-gray-50"
-                  >
-                    <div className="flex-1">
-                      <input
-                        type="text"
-                        value={category.name}
-                        onChange={(e) => {
-                          setSetupData((prev) => ({
-                            ...prev,
-                            roleHolderCategories: prev.roleHolderCategories.map((cat) =>
-                              cat.id === category.id
-                                ? { ...cat, name: e.target.value }
-                                : cat
-                            ),
-                          }));
-                        }}
-                        className="w-full rounded-lg border border-gray-200 px-3 py-1 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                      />
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() =>
-                          updateCategoryCount(category.id, category.count - 1)
-                        }
-                        className="rounded-lg border border-gray-200 p-1 hover:bg-gray-100"
-                      >
-                        <Minus className="h-3 w-3 text-gray-500" />
-                      </button>
-                      <span className="w-10 text-center text-sm font-semibold">
-                        {category.count}
-                      </span>
-                      <button
-                        onClick={() =>
-                          updateCategoryCount(category.id, category.count + 1)
-                        }
-                        className="rounded-lg border border-gray-200 p-1 hover:bg-gray-100"
-                      >
-                        <Plus className="h-3 w-3 text-gray-500" />
-                      </button>
-                    </div>
-                    <button
-                      onClick={() => removeCategory(category.id)}
-                      className="rounded-lg p-1 text-red-400 hover:bg-red-50 hover:text-red-600"
-                    >
-                      <XCircle className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <button
-              onClick={addCategory}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-indigo-300 px-4 py-2 text-sm font-medium text-indigo-600 transition hover:border-indigo-500 hover:bg-indigo-50"
+    const SectionHeader = ({ title, icon: Icon, section, badge, good }) => (
+      <button
+        onClick={() => toggleSection(section)}
+        className="w-full flex items-center justify-between px-6 py-5 bg-transparent border-none cursor-pointer text-[#c4cbf0] hover:bg-white/5 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-[rgba(124,147,255,0.35)] flex items-center justify-center text-[#a9b8ff] shadow-inner">
+            <Icon size={16} />
+          </div>
+          <span className="text-[15.5px] font-bold text-[#f2f4ff]">{title}</span>
+          {badge && (
+            <span
+              className={`text-[11px] font-bold px-2.5 py-1 rounded-full ml-1 border ${
+                good
+                  ? "bg-[rgba(72,214,153,0.15)] text-[#6fe0ac] border-[rgba(72,214,153,0.3)]"
+                  : "bg-[rgba(124,147,255,0.18)] text-[#b6c2ff] border-[rgba(124,147,255,0.3)]"
+              }`}
             >
-              <Plus className="h-4 w-4" />
-              Add Category
-            </button>
-          </div>
-        );
+              {badge}
+            </span>
+          )}
+        </div>
+        {expandedSections[section] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+      </button>
+    );
 
-      case 2:
-        return (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between rounded-lg bg-gray-50 p-3">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-gray-700">Enable Preparation Stage</span>
-                <ToggleSwitch
-                  enabled={setupData.preparationEnabled}
-                  onChange={(val) =>
-                    setSetupData((prev) => ({ ...prev, preparationEnabled: val }))
-                  }
-                />
-              </div>
-              <span className="text-xs text-gray-400">Y/N</span>
-            </div>
+    if (loading) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-[#1e2a63] via-[#10163a] to-[#070a1c] text-[#c4cbf0] gap-2.5">
+          <Loader className="animate-spin" size={30} />
+          <p>Loading setup data...</p>
+        </div>
+      );
+    }
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-lg border border-gray-100 p-3">
-                <label className="text-xs text-gray-400">No. of Preparation Booths</label>
-                <div className="mt-1">
-                  <input
-                    type="number"
-                    value={setupData.preparationBooths}
-                    onChange={(e) =>
-                      setSetupData((prev) => ({
-                        ...prev,
-                        preparationBooths: Math.max(1, parseInt(e.target.value) || 1),
-                      }))
-                    }
-                    className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  />
-                </div>
-              </div>
-              <div className="rounded-lg border border-gray-100 p-3">
-                <label className="text-xs text-gray-400">Prep Time (minutes)</label>
-                <div className="mt-1 flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={setupData.preparationTimePerCase}
-                    onChange={(e) =>
-                      setSetupData((prev) => ({
-                        ...prev,
-                        preparationTimePerCase: Math.max(1, parseInt(e.target.value) || 1),
-                      }))
-                    }
-                    className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  />
-                  <span className="text-xs text-gray-400">min</span>
-                </div>
+    return (
+      <div className="font-sans bg-gradient-to-br from-[#1e2a63] via-[#10163a] to-[#070a1c] min-h-screen py-12 px-6 text-[#e9ecf7]">
+        <div className="max-w-4xl mx-auto flex flex-col gap-5.5">
+          {showSuccess && (
+            <div className="fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-[rgba(38,46,92,0.97)] border border-[rgba(111,224,172,0.35)] shadow-2xl">
+              <CheckCircle size={18} color="#6fe0ac" />
+              <div>
+                <p className="text-sm font-bold text-white m-0">Setup saved</p>
+                <p className="text-xs text-[#9aa3d1] mt-0.5">All configurations saved successfully</p>
               </div>
             </div>
+          )}
 
-            <div className="rounded-lg border border-gray-100 p-3">
-              <div className="flex items-center justify-between">
-                <label className="text-sm text-gray-700">Auto Close</label>
-                <ToggleSwitch
-                  enabled={setupData.autoClosePrep}
-                  onChange={(val) =>
-                    setSetupData((prev) => ({ ...prev, autoClosePrep: val }))
-                  }
-                />
+          {/* Header – no save button */}
+          <div className="bg-gradient-to-br from-[rgba(38,46,92,0.9)] to-[rgba(22,27,58,0.92)] rounded-2xl border border-white/10 shadow-2xl shadow-black/30 overflow-hidden">
+            <div className="flex items-center px-7 py-6">
+              <div className="flex items-center gap-4">
+                <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-[#6f8bff] to-[#4457d8] flex items-center justify-center shadow-lg shadow-[rgba(76,98,230,0.7)]">
+                  <Settings size={22} color="#fff" />
+                </div>
+                <div>
+                  <h1 className="text-[21px] font-bold text-white m-0 tracking-tight">Assessment setup</h1>
+                  <p className="text-[13px] text-[#9aa3d1] mt-0.5">Configure all settings in one place</p>
+                </div>
               </div>
-              <span className="text-xs text-gray-400">Y/N</span>
             </div>
           </div>
-        );
 
-      case 3:
-        return (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-lg border border-gray-100 p-3">
-                <label className="text-xs text-gray-400">No. of Evaluation Rounds</label>
-                <div className="mt-1 flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={setupData.evaluationRounds}
-                    onChange={(e) =>
-                      setSetupData((prev) => ({
-                        ...prev,
-                        evaluationRounds: Math.max(1, parseInt(e.target.value) || 1),
-                      }))
-                    }
-                    className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  />
-                  <span className="text-xs text-gray-400">rounds</span>
-                </div>
-              </div>
-              <div className="rounded-lg border border-gray-100 p-3">
-                <label className="text-xs text-gray-400">No. of Evaluators</label>
-                <div className="mt-1">
-                  <input
-                    type="number"
-                    value={setupData.numberOfEvaluators}
-                    onChange={(e) =>
-                      setSetupData((prev) => ({
-                        ...prev,
-                        numberOfEvaluators: Math.max(1, parseInt(e.target.value) || 1),
-                      }))
-                    }
-                    className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-gray-100 p-3">
-              <div className="flex items-center justify-between">
-                <label className="text-sm text-gray-700">Evaluator to Participant Mapping</label>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-emerald-600">✓ Yes</span>
-                  <ToggleSwitch
-                    enabled={setupData.evaluatorToParticipantMapping}
-                    onChange={(val) =>
-                      setSetupData((prev) => ({ ...prev, evaluatorToParticipantMapping: val }))
-                    }
-                  />
-                </div>
-              </div>
-              <span className="text-xs text-gray-400">Y/N</span>
-            </div>
-
-            <div className="rounded-lg border border-gray-100 p-3">
-              <label className="text-xs text-gray-400">Time Per Evaluation Round</label>
-              <div className="mt-1 flex items-center gap-2">
-                <input
-                  type="number"
-                  value={setupData.timePerEvaluationRound}
-                  onChange={(e) =>
-                    setSetupData((prev) => ({
-                      ...prev,
-                      timePerEvaluationRound: Math.max(1, parseInt(e.target.value) || 1),
-                    }))
-                  }
-                  className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                />
-                <span className="text-xs text-gray-400">minutes</span>
-              </div>
-            </div>
-
-            {/* Conditional File Upload - Only show if mapping is enabled */}
-            {setupData.evaluatorToParticipantMapping && (
-              <div className="rounded-lg border-2 border-dashed border-indigo-300 p-4">
-                <div className="flex items-center gap-3">
-                  <Upload className="h-5 w-5 text-indigo-500" />
-                  <div className="flex-1">
-                    <label className="text-sm font-medium text-gray-700">Upload Mapping List</label>
-                    <p className="text-xs text-gray-400">Upload CSV or Excel file with evaluator to participant mapping</p>
+          {/* Movement Chart */}
+          <div className="bg-gradient-to-br from-[rgba(38,46,92,0.9)] to-[rgba(22,27,58,0.92)] rounded-2xl border border-white/10 shadow-2xl shadow-black/30 overflow-hidden">
+            <SectionHeader
+              title="Movement chart"
+              icon={Upload}
+              section="movementChart"
+              badge={uploadedFile ? "Uploaded" : "Required"}
+              good={!!uploadedFile}
+            />
+            {expandedSections.movementChart && (
+              <div className="px-7 pb-6 pt-1">
+                <div className="flex items-center justify-between gap-5 p-4.5 rounded-2xl mt-3.5 bg-white/5 border border-dashed border-[rgba(140,158,255,0.4)]">
+                  <div>
+                    <p className="text-sm font-semibold text-[#eef0fb] m-0">Upload Excel file with participant schedules and movements</p>
+                    <p className="text-xs text-[#8f97c4] mt-0.5">Supported formats: .xlsx, .xls, .csv</p>
                   </div>
-                  <input
-                    type="file"
-                    accept=".csv,.xlsx,.xls"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    id="file-upload"
-                  />
-                  <label
-                    htmlFor="file-upload"
-                    className="cursor-pointer rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700"
-                  >
-                    Browse
-                  </label>
+                  <div>
+                    <input
+                      type="file"
+                      accept=".csv,.xlsx,.xls"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      id="file-upload"
+                    />
+                    <label
+                      htmlFor="file-upload"
+                      className="px-5 py-2.5 rounded-xl cursor-pointer whitespace-nowrap bg-gradient-to-br from-[#303a72] to-[#1e234c] text-[#c3cbff] font-semibold text-sm shadow-lg shadow-black/30 hover:brightness-110 transition inline-block"
+                    >
+                      Browse
+                    </label>
+                  </div>
                 </div>
                 {uploadedFile && (
-                  <div className="mt-3 flex items-center gap-2 rounded-lg bg-green-50 p-2">
-                    <FileText className="h-4 w-4 text-green-600" />
-                    <span className="text-sm text-green-700">{uploadedFile.name}</span>
-                    <span className="text-xs text-green-500">
-                      ({(uploadedFile.size / 1024).toFixed(1)} KB)
-                    </span>
+                  <div className="mt-3.5 flex flex-wrap items-center gap-3 bg-[rgba(124,147,255,0.1)] border border-[rgba(124,147,255,0.25)] rounded-3xl px-4 py-3">
+                    <FileText size={18} color="#a9b8ff" />
+                    <span className="text-sm text-[#eef0fb] flex-1 min-w-[120px]">{uploadedFile.name}</span>
+                    <span className="text-xs text-[#8f97c4]">{(uploadedFile.size / 1024).toFixed(1)} KB</span>
                     <button
-                      onClick={() => setUploadedFile(null)}
-                      className="ml-auto text-xs text-red-500 hover:text-red-700"
+                      className="bg-none border-none text-[#f0899a] text-sm font-semibold cursor-pointer hover:underline"
+                      onClick={() => {
+                        setUploadedFile(null);
+                        setSetupData((prev) => ({ ...prev, movementChartFile: null }));
+                      }}
                     >
                       Remove
                     </button>
@@ -417,236 +397,359 @@ export default function AdminPanel() {
               </div>
             )}
           </div>
-        );
 
-      case 4:
-        return (
-          <div className="space-y-3">
-            <div className="rounded-lg border border-gray-100 p-3">
-              <div className="flex items-center justify-between">
-                <label className="text-sm text-gray-700">Enable Reminders</label>
-                <ToggleSwitch
-                  enabled={setupData.reminderEnabled}
-                  onChange={(val) =>
-                    setSetupData((prev) => ({ ...prev, reminderEnabled: val }))
-                  }
-                />
-              </div>
-              <span className="text-xs text-gray-400">Y/N</span>
-            </div>
-
-            <div className="rounded-lg border border-gray-100 p-3">
-              <div className="flex items-center justify-between">
-                <label className="text-sm text-gray-700">Reminder Count</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={setupData.reminderCount}
-                    onChange={(e) =>
-                      setSetupData((prev) => ({
-                        ...prev,
-                        reminderCount: Math.max(1, parseInt(e.target.value) || 1),
-                      }))
-                    }
-                    className="w-20 rounded-lg border border-gray-200 px-3 py-1 text-center text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                  />
-                  <span className="text-xs text-gray-400">times</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-gray-100 p-3">
-              <div className="flex items-center justify-between">
-                <label className="text-sm text-gray-700">Auto Submit</label>
-                <ToggleSwitch
-                  enabled={setupData.autoSubmit}
-                  onChange={(val) =>
-                    setSetupData((prev) => ({ ...prev, autoSubmit: val }))
-                  }
-                />
-              </div>
-              <span className="text-xs text-gray-400">Y/N</span>
-            </div>
-
-            {/* Summary Card */}
-            <div className="mt-4 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 p-4 text-white">
-              <h3 className="text-base font-bold text-center">Setup Summary</h3>
-              <div className="mt-3 grid grid-cols-4 gap-2 text-sm">
-                <div className="text-center">
-                  <p className="text-white/70 text-xs">Total Participants</p>
-                  <p className="text-lg font-bold">{totalCount}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-white/70 text-xs">Categories</p>
-                  <p className="text-lg font-bold">{setupData.roleHolderCategories.length}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-white/70 text-xs">Prep Booths</p>
-                  <p className="text-lg font-bold">{setupData.preparationBooths}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-white/70 text-xs">Evaluators</p>
-                  <p className="text-lg font-bold">{setupData.numberOfEvaluators}</p>
-                </div>
-              </div>
-              {uploadedFile && (
-                <div className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-white/20 p-2">
-                  <FileText className="h-4 w-4" />
-                  <span className="text-sm">{uploadedFile.name}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-
-      default:
-        return null;
-    }
-  };
-
-  return (
-    <div className="h-screen w-screen bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden">
-      <div className="h-full w-full flex flex-col p-4">
-        {/* Header */}
-        <div className="flex-shrink-0 flex items-center justify-between rounded-2xl bg-white px-6 py-4 shadow-lg">
-          <div className="flex items-center gap-4">
-            <div className="rounded-xl bg-indigo-600 p-2.5">
-              <Settings className="h-7 w-7 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-800">Setup Panel</h1>
-              <p className="text-xs text-gray-500">Configure assessment workflow settings</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <button className="flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-200">
-              <RefreshCw className="h-3.5 w-3.5" />
-              Reset
-            </button>
-            <button className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-700">
-              <Save className="h-3.5 w-3.5" />
-              Save Changes
-            </button>
-          </div>
-        </div>
-
-        {/* Stepper - Centered with lines */}
-        <div className="flex-shrink-0 mt-6 px-8">
-          <div className="flex items-center justify-center">
-            {stepTitles.map((title, index) => {
-              const stepNumber = index + 1;
-              const isActive = currentStep === stepNumber;
-              const isCompleted = currentStep > stepNumber;
-              const Icon = stepIcons[index];
-
-              return (
-                <div key={stepNumber} className="flex items-center">
-                  <button
-                    onClick={() => goToStep(stepNumber)}
-                    className="flex flex-col items-center transition"
-                  >
-                    <div
-                      className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition ${
-                        isActive
-                          ? "border-indigo-600 bg-indigo-600 text-white shadow-lg shadow-indigo-200"
-                          : isCompleted
-                          ? "border-emerald-500 bg-emerald-500 text-white"
-                          : "border-gray-300 bg-white text-gray-400"
-                      }`}
-                    >
-                      {isCompleted ? (
-                        <Check className="h-5 w-5" />
-                      ) : (
-                        <Icon className="h-4 w-4" />
-                      )}
-                    </div>
-                    <span
-                      className={`mt-1 text-[10px] font-medium whitespace-nowrap ${
-                        isActive ? "text-indigo-600" : "text-gray-400"
-                      }`}
-                    >
-                      {title}
-                    </span>
-                  </button>
-                  {stepNumber < totalSteps && (
-                    <div className="w-16 mx-1">
-                      <div
-                        className={`h-0.5 transition ${
-                          currentStep > stepNumber ? "bg-emerald-500" : "bg-gray-300"
-                        }`}
-                      />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Content Card */}
-        <div className="flex-1 mt-4 overflow-hidden rounded-2xl bg-white shadow-lg flex flex-col min-h-0">
-          <div className="flex-shrink-0 border-b border-gray-100 px-6 py-3">
-            <h2 className="text-base font-semibold text-gray-800">
-              Step {currentStep}: {stepTitles[currentStep - 1]}
-            </h2>
-            <p className="text-xs text-gray-500">
-              Configure {stepTitles[currentStep - 1].toLowerCase()} settings
-            </p>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-6">
-            {renderStepContent()}
-          </div>
-
-          {/* Navigation Buttons */}
-          <div className="flex-shrink-0 border-t border-gray-100 px-6 py-3">
-            <div className="flex items-center justify-between">
-              <button
-                onClick={prevStep}
-                disabled={currentStep === 1}
-                className={`flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm font-medium transition ${
-                  currentStep === 1
-                    ? "cursor-not-allowed bg-gray-100 text-gray-400"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Previous
-              </button>
-
-              {currentStep === totalSteps ? (
-                <button className="flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-1.5 text-sm font-medium text-white transition hover:bg-emerald-700">
-                  <Zap className="h-4 w-4" />
-                  Launch Assessment
-                </button>
-              ) : (
-                <button
-                  onClick={nextStep}
-                  className="flex items-center gap-2 rounded-lg bg-indigo-600 px-6 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700"
-                >
-                  Next
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Progress Indicator */}
-        <div className="flex-shrink-0 mt-3 flex items-center justify-center gap-2">
-          {Array.from({ length: totalSteps }).map((_, index) => (
-            <div
-              key={index}
-              className={`h-1 w-8 rounded-full transition ${
-                currentStep > index ? "bg-indigo-600" : "bg-gray-200"
-              }`}
+          {/* Hold Area (Pre) */}
+          <div className="bg-gradient-to-br from-[rgba(38,46,92,0.9)] to-[rgba(22,27,58,0.92)] rounded-2xl border border-white/10 shadow-2xl shadow-black/30 overflow-hidden">
+            <SectionHeader
+              title="Hold area (pre)"
+              icon={MapPin}
+              section="holdAreaPre"
+              badge={setupData.holdAreaPre ? "Enabled" : "Disabled"}
+              good={setupData.holdAreaPre}
             />
-          ))}
-          <span className="ml-2 text-[10px] text-gray-400">
-            {currentStep} / {totalSteps}
-          </span>
+            {expandedSections.holdAreaPre && (
+              <div className="px-7 pb-6 pt-1">
+                <div className="flex items-center justify-between gap-5 mt-4.5">
+                  <div>
+                    <div className="text-[14.5px] text-[#eef0fb] font-semibold">Enable pre-assessment hold area</div>
+                    <div className="text-[12.5px] text-[#8f97c4] mt-0.5">Participants will be held before assessment starts</div>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <span className={`text-[13.5px] font-bold ${setupData.holdAreaPre ? "text-[#8fe0b5]" : "text-[#6b7398]"}`}>
+                      {setupData.holdAreaPre ? "Enabled" : "Disabled"}
+                    </span>
+                    <ToggleSwitch
+                      enabled={setupData.holdAreaPre}
+                      onChange={(val) => setSetupData((prev) => ({ ...prev, holdAreaPre: val }))}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Preparation Round */}
+          <div className="bg-gradient-to-br from-[rgba(38,46,92,0.9)] to-[rgba(22,27,58,0.92)] rounded-2xl border border-white/10 shadow-2xl shadow-black/30 overflow-hidden">
+            <SectionHeader
+              title="Preparation round"
+              icon={Clock}
+              section="preparation"
+              badge={setupData.preparationEnabled ? "Active" : "Inactive"}
+              good={setupData.preparationEnabled}
+            />
+            {expandedSections.preparation && (
+              <div className="px-7 pb-6 pt-1">
+                <div className="flex items-center justify-between gap-5 mt-4.5">
+                  <span className="text-[14.5px] text-[#eef0fb] font-semibold">Enable preparation stage</span>
+                  <div className="flex items-center gap-2.5">
+                    <span className={`text-[13.5px] font-bold ${setupData.preparationEnabled ? "text-[#8fe0b5]" : "text-[#6b7398]"}`}>
+                      {setupData.preparationEnabled ? "Yes" : "No"}
+                    </span>
+                    <ToggleSwitch
+                      enabled={setupData.preparationEnabled}
+                      onChange={(val) => setSetupData((prev) => ({ ...prev, preparationEnabled: val }))}
+                    />
+                  </div>
+                </div>
+
+                {setupData.preparationEnabled && (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-4.5">
+                      <div>
+                        <label className="text-[12.5px] text-[#9aa3d1] font-semibold block mb-2">Preparation booths</label>
+                        <input
+                          type="number"
+                          value={setupData.preparationBooths}
+                          onChange={(e) =>
+                            setSetupData((prev) => ({
+                              ...prev,
+                              preparationBooths: Math.max(1, parseInt(e.target.value) || 1),
+                            }))
+                          }
+                          className="w-full h-11.5 rounded-3xl border border-white/10 bg-black/25 text-[#f2f4ff] text-sm px-4 outline-none shadow-inner"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[12.5px] text-[#9aa3d1] font-semibold block mb-2">Prep time (minutes)</label>
+                        <input
+                          type="number"
+                          value={setupData.preparationTime}
+                          onChange={(e) =>
+                            setSetupData((prev) => ({
+                              ...prev,
+                              preparationTime: Math.max(1, parseInt(e.target.value) || 1),
+                            }))
+                          }
+                          className="w-full h-11.5 rounded-3xl border border-white/10 bg-black/25 text-[#f2f4ff] text-sm px-4 outline-none shadow-inner"
+                        />
+                      </div>
+                    </div>
+
+                    <hr className="border-t border-white/10 my-5" />
+
+                    <div className="flex items-center justify-between gap-5">
+                      <span className="text-[14.5px] text-[#eef0fb] font-semibold">Auto close</span>
+                      <div className="flex items-center gap-2.5">
+                        <span className={`text-[13.5px] font-bold ${setupData.autoClosePrep ? "text-[#8fe0b5]" : "text-[#6b7398]"}`}>
+                          {setupData.autoClosePrep ? "Yes" : "No"}
+                        </span>
+                        <ToggleSwitch
+                          enabled={setupData.autoClosePrep}
+                          onChange={(val) => setSetupData((prev) => ({ ...prev, autoClosePrep: val }))}
+                        />
+                      </div>
+                    </div>
+
+                    <hr className="border-t border-white/10 my-5" />
+
+                    <div className="flex items-center justify-between gap-5 mt-0">
+                      <span className="text-[14.5px] text-[#eef0fb] font-semibold">Reminders</span>
+                      <button
+                        className="px-4 py-2 rounded-2xl border border-[rgba(124,147,255,0.35)] cursor-pointer bg-[rgba(124,147,255,0.12)] text-[#b6c2ff] font-semibold text-sm flex items-center gap-1.5 hover:bg-[rgba(124,147,255,0.2)] transition"
+                        onClick={addReminder}
+                      >
+                        <Plus size={14} />
+                        Add
+                      </button>
+                    </div>
+                    <div className="mt-3.5 flex flex-col gap-3">
+                      {setupData.preparationReminders.map((reminder) => (
+                        <div
+                          key={reminder.id}
+                          className="flex items-center gap-2.5 p-3 rounded-3xl bg-[rgba(124,147,255,0.1)] border border-[rgba(124,147,255,0.18)]"
+                        >
+                          <select
+                            value={reminder.type}
+                            onChange={(e) => updateReminder(reminder.id, "type", e.target.value)}
+                            className="h-10 rounded-2xl border border-white/10 bg-black/25 text-[#f2f4ff] px-3 text-sm outline-none shadow-inner flex-1 min-w-[90px]"
+                          >
+                            <option value="before">Before</option>
+                            <option value="after">After</option>
+                          </select>
+                          <input
+                            type="number"
+                            className="w-[80px] h-10 rounded-2xl border border-white/10 bg-black/25 text-[#f2f4ff] px-3 text-sm outline-none shadow-inner"
+                            value={reminder.minutes}
+                            onChange={(e) =>
+                              updateReminder(reminder.id, "minutes", parseInt(e.target.value) || 0)
+                            }
+                            placeholder="Min"
+                          />
+                          <button
+                            className="w-9.5 h-9.5 rounded-2xl border-none cursor-pointer bg-white/5 text-[#9aa3d1] flex items-center justify-center hover:bg-white/10 transition"
+                            aria-label="Remove reminder"
+                            onClick={() => removeReminder(reminder.id)}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Evaluation Rounds with reminders per round */}
+          <div className="bg-gradient-to-br from-[rgba(38,46,92,0.9)] to-[rgba(22,27,58,0.92)] rounded-2xl border border-white/10 shadow-2xl shadow-black/30 overflow-hidden">
+            <SectionHeader
+              title="Evaluation rounds"
+              icon={Repeat}
+              section="evaluation"
+              badge={`${setupData.evaluationRounds.length} rounds`}
+            />
+            {expandedSections.evaluation && (
+              <div className="px-7 pb-6 pt-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-3.5">
+                  {setupData.evaluationRounds.map((round) => (
+                    <div
+                      key={round.id}
+                      className="rounded-2xl p-5 bg-white/10 border border-white/10 shadow-2xl shadow-black/30"
+                    >
+                      <div className="flex items-center justify-between mb-3.5">
+                        <span className="text-[15px] font-bold text-[#a9b8ff]">Round {round.id}</span>
+                        <button
+                          className="w-9.5 h-9.5 rounded-2xl border-none cursor-pointer bg-white/5 text-[#9aa3d1] flex items-center justify-center hover:bg-white/10 transition"
+                          aria-label="Remove round"
+                          onClick={() => removeEvaluationRound(round.id)}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                      <div className="mb-3.5">
+                        <label className="text-[12.5px] text-[#9aa3d1] font-semibold block mb-2">Round name</label>
+                        <input
+                          type="text"
+                          value={round.name}
+                          onChange={(e) => updateEvaluationRound(round.id, "name", e.target.value)}
+                          placeholder="Round name"
+                          className="w-full h-11.5 rounded-3xl border border-white/10 bg-black/25 text-[#f2f4ff] text-sm px-4 outline-none shadow-inner"
+                        />
+                      </div>
+                      <div className="mb-3.5">
+                        <label className="text-[12.5px] text-[#9aa3d1] font-semibold block mb-2">Time (minutes)</label>
+                        <input
+                          type="number"
+                          value={round.time}
+                          onChange={(e) =>
+                            updateEvaluationRound(round.id, "time", parseInt(e.target.value) || 1)
+                          }
+                          placeholder="Time"
+                          className="w-full h-11.5 rounded-3xl border border-white/10 bg-black/25 text-[#f2f4ff] text-sm px-4 outline-none shadow-inner"
+                        />
+                      </div>
+                      <hr className="border-t border-white/10 my-3.5" />
+                      <div className="flex items-center justify-between gap-5 mt-0">
+                        <span className="text-[13.5px] text-[#eef0fb] font-semibold">Hold area</span>
+                        <div className="flex items-center gap-2.5">
+                          <span className={`text-[13.5px] font-bold ${round.holdArea ? "text-[#8fe0b5]" : "text-[#6b7398]"}`}>
+                            {round.holdArea ? "Yes" : "No"}
+                          </span>
+                          <ToggleSwitch
+                            enabled={round.holdArea}
+                            onChange={(val) => updateEvaluationRound(round.id, "holdArea", val)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Round Reminders */}
+                      <hr className="border-t border-white/10 my-3.5" />
+                      <div className="flex items-center justify-between gap-5 mt-0">
+                        <span className="text-[13.5px] text-[#eef0fb] font-semibold">Reminders</span>
+                        <button
+                          className="px-3 py-1.5 rounded-xl border border-[rgba(124,147,255,0.35)] cursor-pointer bg-[rgba(124,147,255,0.12)] text-[#b6c2ff] font-semibold text-xs flex items-center gap-1 hover:bg-[rgba(124,147,255,0.2)] transition"
+                          onClick={() => addRoundReminder(round.id)}
+                        >
+                          <Plus size={12} />
+                          Add
+                        </button>
+                      </div>
+                      <div className="mt-3 flex flex-col gap-2">
+                        {round.reminders.map((reminder) => (
+                          <div
+                            key={reminder.id}
+                            className="flex items-center gap-2 p-2 rounded-xl bg-[rgba(124,147,255,0.08)] border border-[rgba(124,147,255,0.12)]"
+                          >
+                            <select
+                              value={reminder.type}
+                              onChange={(e) =>
+                                updateRoundReminder(round.id, reminder.id, "type", e.target.value)
+                              }
+                              className="h-8 rounded-lg border border-white/10 bg-black/25 text-[#f2f4ff] px-2 text-xs outline-none shadow-inner flex-1 min-w-[80px]"
+                            >
+                              <option value="before">Before</option>
+                              <option value="after">After</option>
+                            </select>
+                            <input
+                              type="number"
+                              className="w-[70px] h-8 rounded-lg border border-white/10 bg-black/25 text-[#f2f4ff] px-2 text-xs outline-none shadow-inner"
+                              value={reminder.minutes}
+                              onChange={(e) =>
+                                updateRoundReminder(
+                                  round.id,
+                                  reminder.id,
+                                  "minutes",
+                                  parseInt(e.target.value) || 0
+                                )
+                              }
+                              placeholder="Min"
+                            />
+                            <button
+                              className="w-7 h-7 rounded-lg border-none cursor-pointer bg-white/5 text-[#9aa3d1] flex items-center justify-center hover:bg-white/10 transition"
+                              aria-label="Remove reminder"
+                              onClick={() => removeRoundReminder(round.id, reminder.id)}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        ))}
+                        {round.reminders.length === 0 && (
+                          <p className="text-xs text-[#6b7398] italic">No reminders set</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  className="mt-4.5 w-full py-4.5 rounded-2xl text-center border border-dashed border-[rgba(140,158,255,0.35)] bg-transparent text-[#a9b8ff] font-semibold text-sm cursor-pointer flex items-center justify-center gap-2 hover:bg-white/5 transition"
+                  onClick={addEvaluationRound}
+                >
+                  <Plus size={16} />
+                  Add evaluation round
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Hold Area (Post) */}
+          <div className="bg-gradient-to-br from-[rgba(38,46,92,0.9)] to-[rgba(22,27,58,0.92)] rounded-2xl border border-white/10 shadow-2xl shadow-black/30 overflow-hidden">
+            <SectionHeader
+              title="Hold area (post)"
+              icon={Flag}
+              section="holdAreaPost"
+              badge={setupData.holdAreaPost ? "Enabled" : "Disabled"}
+              good={setupData.holdAreaPost}
+            />
+            {expandedSections.holdAreaPost && (
+              <div className="px-7 pb-6 pt-1">
+                <div className="flex items-center justify-between gap-5 mt-4.5">
+                  <div>
+                    <div className="text-[14.5px] text-[#eef0fb] font-semibold">Enable post-assessment hold area</div>
+                    <div className="text-[12.5px] text-[#8f97c4] mt-0.5">Participants will be held after assessment ends</div>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <span className={`text-[13.5px] font-bold ${setupData.holdAreaPost ? "text-[#8fe0b5]" : "text-[#6b7398]"}`}>
+                      {setupData.holdAreaPost ? "Enabled" : "Disabled"}
+                    </span>
+                    <ToggleSwitch
+                      enabled={setupData.holdAreaPost}
+                      onChange={(val) => setSetupData((prev) => ({ ...prev, holdAreaPost: val }))}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer with Launch Assessment button */}
+          <div className="bg-gradient-to-br from-[rgba(38,46,92,0.9)] to-[rgba(22,27,58,0.92)] rounded-2xl border border-white/10 shadow-2xl shadow-black/30 overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-4 px-7 py-5">
+              <div className="flex flex-wrap items-center gap-5 text-sm text-[#9aa3d1]">
+                <span className="flex items-center gap-1.5">
+                  <span className={`w-1.5 h-1.5 rounded-full ${setupData.holdAreaPre ? "bg-[#6f8bff] shadow-[0_0_8px_#6f8bff]" : "bg-[#444b7a]"}`} />
+                  Pre-hold
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className={`w-1.5 h-1.5 rounded-full ${setupData.preparationEnabled ? "bg-[#6f8bff] shadow-[0_0_8px_#6f8bff]" : "bg-[#444b7a]"}`} />
+                  Prep
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#6f8bff] shadow-[0_0_8px_#6f8bff]" />
+                  {setupData.evaluationRounds.length} rounds
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className={`w-1.5 h-1.5 rounded-full ${setupData.holdAreaPost ? "bg-[#6f8bff] shadow-[0_0_8px_#6f8bff]" : "bg-[#444b7a]"}`} />
+                  Post-hold
+                </span>
+                {uploadedFile && (
+                  <span className="text-[#a9b8ff] font-semibold flex items-center gap-1.5">
+                    <FileText size={14} />
+                    File uploaded
+                  </span>
+                )}
+              </div>
+              <button
+                className="px-7 py-3.5 rounded-3xl border-none cursor-pointer bg-gradient-to-br from-[#7c93ff] to-[#4a5be0] text-white font-bold text-[15px] flex items-center gap-2.5 shadow-xl shadow-[rgba(80,100,235,0.65)] hover:brightness-110 transition disabled:opacity-60 disabled:cursor-default"
+                onClick={saveAllSetup}
+                disabled={saving}
+              >
+                {saving ? <Loader size={16} className="animate-spin" /> : <Zap size={16} />}
+                {saving ? "Saving..." : "Launch assessment"}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }

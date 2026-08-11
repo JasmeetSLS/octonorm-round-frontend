@@ -459,7 +459,7 @@ const generateParticipants = () => {
           return (
             <div key={trainer} className="flex items-center gap-1">
               <span className={`h-2.5 w-2.5 rounded-full ${colors?.bg || 'bg-gray-400'}`} />
-              <span className="text-[9px] text-gray-600">{trainer}</span>
+              <span className="text-[10px] font-medium text-gray-700">{trainer}</span>
             </div>
           );
         })}
