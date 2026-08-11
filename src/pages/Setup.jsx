@@ -406,11 +406,11 @@ const generateParticipants = () => {
   // ---- end drag & drop handlers ----
 
   const stageBorderColors = {
-    main: "border-4 border-purple-400 hover:border-purple-500",
-    holding: "border-4 border-yellow-400 hover:border-yellow-500",
-    prep: "border-4 border-sky-500 hover:border-sky-600",
-    eval: "border-4 border-rose-500 hover:border-rose-600",
-    completed: "border-4 border-green-400 hover:border-green-500",
+    main: "border-6 border-purple-400 hover:border-purple-500",
+    holding: "border-6 border-yellow-400 hover:border-yellow-500",
+    prep: "border-6 border-sky-500 hover:border-sky-600",
+    eval: "border-6 border-rose-500 hover:border-rose-600",
+    completed: "border-6 border-green-400 hover:border-green-500",
   };
 
   const stageShortLabels = {
@@ -530,14 +530,6 @@ const generateParticipants = () => {
         </div>
       </div>
 
-      {/* Trainer Legend */}
-      <div className="mb-3 rounded-xl border border-gray-200 bg-white px-4 py-2 shadow-sm">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-semibold text-gray-400">TRAINERS:</span>
-          <TrainerLegend />
-        </div>
-      </div>
-
       {/* Select mode toggle bar */}
       <div className="mb-3 flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-2.5 shadow-sm">
         <div className="flex items-center gap-2">
@@ -647,7 +639,7 @@ const generateParticipants = () => {
 
                       {/* Trainer name with colored background box */}
                       <div className="mt-0.5 w-full flex justify-center">
-                        <span className={`px-2 py-0.5 rounded text-[9px] font-semibold ${trainerColor?.bg || 'bg-gray-400'} text-white`}>
+                        <span className={`px-1 py-0.5 rounded text-[9px] font-semibold ${trainerColor?.bg || 'bg-gray-400'} text-white`}>
                           {p.trainer}
                         </span>
                       </div>
@@ -671,8 +663,16 @@ const generateParticipants = () => {
         })}
       </div>
 
+       {/* Trainer Legend */}
+      <div className="mt-3 rounded-xl border border-gray-200 bg-white px-4 py-2 shadow-sm">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-semibold text-gray-400">TRAINERS:</span>
+          <TrainerLegend />
+        </div>
+      </div>
+
       {/* Legend */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 shadow-sm">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 shadow-sm">
         <div className="flex flex-wrap items-center gap-3 text-[10px]">
           <span className="font-semibold text-gray-400">LEGEND:</span>
           <LegendDot color="bg-purple-500" label="MAIN" />
