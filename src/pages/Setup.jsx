@@ -168,11 +168,12 @@ const generateParticipants = () => {
     preparation_time_per_case: 5,
     no_of_evaluators: 5,
     time_per_evaluation_round: 10,
+    time_per_bike_round: 10,   // 👈 NEW: 10 minutes for Bike
   };
 
   const totalParticipants = 50;
 
-  // Single timer tick for anyone with an active timer (prep or eval)
+  // Single timer tick for anyone with an active timer (prep, eval, or bike)
   useEffect(() => {
     const interval = setInterval(() => {
       setParticipants((prev) =>
@@ -238,6 +239,15 @@ const generateParticipants = () => {
             : p
         );
       }
+      // 👇 NEW: move to Bike with 10-min timer
+      if (popupAction === "toBike") {
+        return prev.map((p) =>
+          p.id === participantId
+            ? { ...p, stage: "bike", timer: setupData.time_per_bike_round * 60 }
+            : p
+        );
+      }
+      // 👇 Updated: move from Bike to Completed
       if (popupAction === "toComplete") {
         return prev.map((p) => (p.id === participantId ? { ...p, stage: "completed", timer: null } : p));
       }
@@ -296,7 +306,10 @@ const generateParticipants = () => {
           return { ...p, stage: "eval", evaluator: `Evaluator ${evaluatorNumber}`, timer: setupData.time_per_evaluation_round * 60 };
         }
         if (p.stage === "eval") {
-          return { ...p, stage: "completed", timer: null };
+          return { ...p, stage: "bike", timer: setupData.time_per_bike_round * 60 }; // 👈 new
+        }
+        if (p.stage === "bike") {
+          return { ...p, stage: "completed", timer: null }; // 👈 new
         }
         return p; // already completed, nothing further
       });
@@ -327,7 +340,8 @@ const generateParticipants = () => {
     if (p.stage === "main") openPopup(p, "toHolding");
     else if (p.stage === "holding") openPopup(p, "toPrep");
     else if (p.stage === "prep") openPopup(p, "toEval");
-    else if (p.stage === "eval") openPopup(p, "toComplete");
+    else if (p.stage === "eval") openPopup(p, "toBike");   // 👈 new
+    else if (p.stage === "bike") openPopup(p, "toComplete"); // 👈 new
   };
 
   // ---- Drag & drop handlers ----
@@ -410,6 +424,7 @@ const generateParticipants = () => {
     holding: "border-6 border-yellow-400 hover:border-yellow-500",
     prep: "border-6 border-sky-500 hover:border-sky-600",
     eval: "border-6 border-rose-500 hover:border-rose-600",
+    bike: "border-6 border-orange-400 hover:border-orange-500",   // 👈 new
     completed: "border-6 border-green-400 hover:border-green-500",
   };
 
@@ -418,6 +433,7 @@ const generateParticipants = () => {
     holding: "HOLD (PRE)",
     prep: "PREP",
     eval: "EVAL",
+    bike: "BIKE",        // 👈 new
     completed: "HOLD (POST)",
   };
 
@@ -426,14 +442,18 @@ const generateParticipants = () => {
     { key: "holding", label: "HOLD (PRE)", value: getStageCount("holding"), icon: Hourglass, from: "#FBBF24", to: "#F59E0B" },
     { key: "prep", label: "PREP", value: getStageCount("prep"), icon: Settings, from: "#0EA5E9", to: "#0284C7" },
     { key: "eval", label: "EVAL", value: getStageCount("eval"), icon: ClipboardList, from: "#F43F5E", to: "#E11D48" },
+    // 👇 new bike stat
+    { key: "bike", label: "BIKE", value: getStageCount("bike"), icon: Monitor, from: "#F97316", to: "#EA580C" },
     { key: "completed", label: "HOLD (POST)", value: getStageCount("completed"), icon: Flag, from: "#34D399", to: "#10B981" },
   ];
+
   const getStepLabel = (action) => {
     const steps = {
       toHolding: { current: "📌 MAIN", next: "📋 HOLD (PRE)", step: 1 },
       toPrep: { current: "⏳ HOLD (PRE)", next: "⚙️ PREP", step: 2 },
       toEval: { current: "🔄 PREP", next: "💻 EVAL", step: 3 },
-      toComplete: { current: "📝 EVAL", next: "🏁 HOLD (POST)", step: 4 },
+      toBike: { current: "📝 EVAL", next: "🚴 BIKE", step: 4 },        // 👈 new
+      toComplete: { current: "🚴 BIKE", next: "🏁 HOLD (POST)", step: 5 }, // 👈 updated
     };
     return steps[action] || { current: "", next: "", step: 0 };
   };
@@ -469,8 +489,8 @@ const generateParticipants = () => {
 
   return (
     <div className="min-h-screen bg-[#F3F4F6] p-4 font-sans pb-24">
-      {/* Top stat strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-3">
+      {/* Top stat strip - now 8 columns */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-3">
         <div className="relative col-span-2 sm:col-span-1 overflow-hidden rounded-2xl bg-gradient-to-br from-[#0B0E1F] to-[#171B34] p-4 text-white shadow-lg">
           <div
             className="absolute inset-0 opacity-[0.15]"
@@ -671,7 +691,7 @@ const generateParticipants = () => {
         </div>
       </div>
 
-      {/* Legend */}
+      {/* Legend - added BIKE dot */}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 shadow-sm">
         <div className="flex flex-wrap items-center gap-3 text-[10px]">
           <span className="font-semibold text-gray-400">LEGEND:</span>
@@ -679,6 +699,7 @@ const generateParticipants = () => {
           <LegendDot color="bg-yellow-500" label="HOLD (PRE)" />
           <LegendDot color="bg-sky-500" label="PREP" />
           <LegendDot color="bg-rose-500" label="EVAL" />
+          <LegendDot color="bg-orange-500" label="BIKE" />   {/* 👈 new */}
           <LegendDot color="bg-green-500" label="HOLD (POST)" />
         </div>
         <div className="flex items-center gap-2 text-[10px] text-gray-400">
@@ -733,6 +754,8 @@ const generateParticipants = () => {
                     ? "linear-gradient(135deg, #FBBF24, #F59E0B)"
                     : popupAction === "toEval"
                     ? "linear-gradient(135deg, #0EA5E9, #0284C7)"
+                    : popupAction === "toBike"                                    // 👈 new
+                    ? "linear-gradient(135deg, #F97316, #EA580C)"
                     : "linear-gradient(135deg, #34D399, #10B981)",
               }}
             >
@@ -765,10 +788,11 @@ const generateParticipants = () => {
             </div>
 
             <div className="p-4">
-              {/* 5 Steps Flow */}
+              {/* 6 Steps Flow - manually written, no Fragment */}
               <div className="mb-4 rounded-xl border border-gray-100 bg-gray-50 p-3">
                 <div className="text-[10px] font-semibold text-gray-400 mb-2">FLOW STEPS</div>
                 <div className="flex items-center justify-between">
+                  {/* Step 1: MAIN */}
                   <div className="flex flex-col items-center">
                     <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
                       popupAction === "toHolding" ? "bg-indigo-600 text-white" : "bg-gray-200 text-gray-400"
@@ -780,6 +804,8 @@ const generateParticipants = () => {
                   <div className="flex-1 h-0.5 mx-1 bg-gray-200">
                     <div className={`h-0.5 ${popupAction === "toHolding" ? "bg-indigo-600" : "bg-gray-200"}`} style={{ width: "100%" }}></div>
                   </div>
+
+                  {/* Step 2: HOLD (PRE) */}
                   <div className="flex flex-col items-center">
                     <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
                       popupAction === "toPrep" ? "bg-amber-500 text-white" : "bg-gray-200 text-gray-400"
@@ -791,6 +817,8 @@ const generateParticipants = () => {
                   <div className="flex-1 h-0.5 mx-1 bg-gray-200">
                     <div className={`h-0.5 ${popupAction === "toPrep" ? "bg-amber-500" : "bg-gray-200"}`} style={{ width: "100%" }}></div>
                   </div>
+
+                  {/* Step 3: PREP */}
                   <div className="flex flex-col items-center">
                     <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
                       popupAction === "toEval" ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-400"
@@ -802,22 +830,39 @@ const generateParticipants = () => {
                   <div className="flex-1 h-0.5 mx-1 bg-gray-200">
                     <div className={`h-0.5 ${popupAction === "toEval" ? "bg-blue-500" : "bg-gray-200"}`} style={{ width: "100%" }}></div>
                   </div>
+
+                  {/* Step 4: EVAL */}
                   <div className="flex flex-col items-center">
                     <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                      popupAction === "toComplete" ? "bg-orange-500 text-white" : "bg-gray-200 text-gray-400"
+                      popupAction === "toBike" ? "bg-orange-500 text-white" : "bg-gray-200 text-gray-400"
                     }`}>
                       4
                     </div>
                     <span className="text-[8px] text-gray-500 mt-0.5">EVAL</span>
                   </div>
                   <div className="flex-1 h-0.5 mx-1 bg-gray-200">
-                    <div className={`h-0.5 ${popupAction === "toComplete" ? "bg-orange-500" : "bg-gray-200"}`} style={{ width: "100%" }}></div>
+                    <div className={`h-0.5 ${popupAction === "toBike" ? "bg-orange-500" : "bg-gray-200"}`} style={{ width: "100%" }}></div>
                   </div>
+
+                  {/* Step 5: BIKE */}
                   <div className="flex flex-col items-center">
                     <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
                       popupAction === "toComplete" ? "bg-emerald-500 text-white" : "bg-gray-200 text-gray-400"
                     }`}>
                       5
+                    </div>
+                    <span className="text-[8px] text-gray-500 mt-0.5">BIKE</span>
+                  </div>
+                  <div className="flex-1 h-0.5 mx-1 bg-gray-200">
+                    <div className={`h-0.5 ${popupAction === "toComplete" ? "bg-emerald-500" : "bg-gray-200"}`} style={{ width: "100%" }}></div>
+                  </div>
+
+                  {/* Step 6: HOLD (POST) */}
+                  <div className="flex flex-col items-center">
+                    <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                      popupAction === "toComplete" ? "bg-emerald-500 text-white" : "bg-gray-200 text-gray-400"
+                    }`}>
+                      6
                     </div>
                     <span className="text-[8px] text-gray-500 mt-0.5">HOLD (POST)</span>
                   </div>
@@ -837,6 +882,7 @@ const generateParticipants = () => {
                     popupAction === "toHolding" ? "text-indigo-600" :
                     popupAction === "toPrep" ? "text-amber-600" :
                     popupAction === "toEval" ? "text-blue-600" :
+                    popupAction === "toBike" ? "text-orange-600" :
                     "text-emerald-600"
                   }`}>
                     {getStepLabel(popupAction).next}
@@ -882,10 +928,12 @@ const generateParticipants = () => {
                         ? "linear-gradient(135deg, #FBBF24, #F59E0B)"
                         : popupAction === "toEval"
                         ? "linear-gradient(135deg, #0EA5E9, #0284C7)"
+                        : popupAction === "toBike"                                    // 👈 new
+                        ? "linear-gradient(135deg, #F97316, #EA580C)"
                         : "linear-gradient(135deg, #34D399, #10B981)",
                   }}
                 >
-                  {popupAction === "toComplete" ? "✅ Move to Hold (Post)" : "→ Move"}
+                  {popupAction === "toComplete" ? "✅ Move to Hold (Post)" : popupAction === "toBike" ? "🚴 Move to Bike" : "→ Move"}
                 </button>
               </div>
             </div>
