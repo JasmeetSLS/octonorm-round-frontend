@@ -416,6 +416,45 @@ const generateParticipants = () => {
       return arr;
     });
   };
+
+  // ---- NEW: drop handler for a specific cell (room + row) ----
+const handleCellDrop = (e, roomId, rowIndex) => {
+  e.preventDefault();
+  e.stopPropagation();
+  dragOccurredRef.current = true;
+  const sourceId = draggedId;
+  setDragOverRoomId(null);
+  setDraggedId(null);
+  if (!sourceId) return;
+
+  setParticipants((prev) => {
+    const arr = [...prev];
+    const fromIndex = arr.findIndex((p) => p.id === sourceId);
+    if (fromIndex === -1) return prev;
+    const [item] = arr.splice(fromIndex, 1);
+
+    let count = 0;
+    let targetParticipant = null;
+    for (let p of arr) {
+      if (p.octonormId === roomId) {
+        if (count === rowIndex) {
+          targetParticipant = p;
+          break;
+        }
+        count++;
+      }
+    }
+
+    if (targetParticipant) {
+      const toIndex = arr.findIndex((p) => p.id === targetParticipant.id);
+      if (toIndex === -1) arr.push({ ...item, octonormId: roomId });
+      else arr.splice(toIndex, 0, { ...item, octonormId: roomId });
+    } else {
+      arr.push({ ...item, octonormId: roomId });
+    }
+    return arr;
+  });
+};
   // ---- end drag & drop handlers ----
 
   const stageBorderColors = {
@@ -467,6 +506,21 @@ const generateParticipants = () => {
   };
 
   const roomsData = getParticipantsByOctonorm();
+
+  // ---- NEW: compute max rows and time labels ----
+const maxRows = Math.max(0, ...Object.values(roomsData).map(arr => arr.length));
+const timeLabels = [];
+let currentTime = new Date();
+currentTime.setHours(9, 0, 0, 0); // start at 9:00 AM
+for (let i = 0; i < maxRows; i++) {
+  const hours = currentTime.getHours();
+  const minutes = currentTime.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const h12 = hours % 12 || 12;
+  const timeStr = `${String(h12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
+  timeLabels.push(timeStr);
+  currentTime.setMinutes(currentTime.getMinutes() + 30);
+}
 
   // Trainer Legend Component
   const TrainerLegend = () => {
@@ -570,12 +624,16 @@ const generateParticipants = () => {
         </button>
       </div>
 
-     {/* Octonorm Header Row - No Colors */}
-<div className="grid grid-cols-10 gap-1 mb-2">
+{/* ===== NEW GRID WITH TIME SLOT COLUMN ===== */}
+<div className="grid grid-cols-[80px_repeat(10,1fr)] gap-1">
+  {/* Header row */}
+  <div className="rounded-t-lg bg-gray-700 py-1.5 px-2 text-center font-bold text-white">
+    Time
+  </div>
   {octonormRooms.map((room) => (
     <div
       key={room.id}
-      className="rounded-t-lg py-1.5 px-2 text-center bg-gray-700 flex flex-col items-center leading-tight"
+      className="rounded-t-lg bg-gray-700 py-1.5 px-2 text-center flex flex-col items-center leading-tight"
     >
       {room.bikeName && (
         <span className="text-yellow-400 font-bold text-[10px] flex items-center gap-0.5">
@@ -588,111 +646,100 @@ const generateParticipants = () => {
       </span>
     </div>
   ))}
-</div>
 
-      {/* Octonorm Content - All 10 Columns Side by Side */}
-      <div className="grid grid-cols-10 gap-1">
-        {octonormRooms.map((room) => {
-          const participantsInRoom = roomsData[room.id] || [];
-          const isDragOverEmpty = dragOverRoomId === room.id;
+  {/* Data rows – using <div> with "contents" class to avoid extra DOM nodes */}
+  {Array.from({ length: maxRows }).map((_, rowIdx) => (
+    <div key={`row-${rowIdx}`} className="contents">
+      {/* ✅ Time slot cell – UPDATED: centered vertically & horizontally */}
+      <div className="bg-gray-100  border border-gray-200 min-h-[80px] flex items-center justify-center">
+        <span className="text-xs font-semibold">{timeLabels[rowIdx] || ''}</span>
+      </div>
 
-          return (
-            <div
-              key={room.id}
-              onDragOver={(e) => handleRoomDragOver(e, room.id)}
-              onDragLeave={() => handleRoomDragLeave(room.id)}
-              onDrop={(e) => handleRoomDrop(e, room.id)}
-              className={`rounded-b-lg p-1.5 min-h-[200px] border-x border-b transition-colors ${
-                isDragOverEmpty ? "border-indigo-400 bg-indigo-50/50" : "border-gray-300"
-              }`}
-            >
-              <div className="space-y-1">
-                {participantsInRoom.map((p) => {
-                  const stage = p.stage;
-                  const border = stageBorderColors[stage];
-                  const shortLabel = stageShortLabels[stage];
-                  const isDragging = draggedId === p.id;
-                  const isSelected = selectedIds.has(p.id);
-                  const trainerColor = trainerColors[p.trainer];
-
-                  return (
-                    <div
-                      key={p.id}
-                      draggable={!selectMode}
-                      onDragStart={(e) => handleDragStart(e, p)}
-                      onDragEnd={handleDragEnd}
-                      onDragOver={handleCardDragOver}
-                      onDrop={(e) => handleCardDrop(e, p)}
-                      onClick={() => handleParticipantClick(p)}
-                      className={`group relative flex ${selectMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"} flex-col items-center rounded-lg bg-white p-1 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md ${border} ${
-                        isDragging ? "opacity-30" : ""
-                      } ${isSelected ? "ring-4 ring-indigo-500 ring-offset-1" : ""}`}
-                    >
-                      {selectMode && (
-                        <div
-                          className={`absolute -top-1.5 -left-1.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white shadow-sm ${
-                            isSelected ? "bg-indigo-600" : "bg-gray-300"
-                          }`}
-                        >
-                          {isSelected && <CheckSquare className="h-2.5 w-2.5 text-white" />}
+      {/* Room cells (unchanged) */}
+      {octonormRooms.map((room) => {
+        const participant = roomsData[room.id]?.[rowIdx] || null;
+        return (
+          <div
+            key={`${room.id}-${rowIdx}`}
+            className="p-1 border border-gray-200 min-h-[80px] relative transition-colors"
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              setDragOverRoomId(room.id);
+            }}
+            onDragLeave={() => setDragOverRoomId(null)}
+            onDrop={(e) => handleCellDrop(e, room.id, rowIdx)}
+          >
+            {participant ? (
+              // Participant card (exactly the same as before)
+              <div
+                key={participant.id}
+                draggable={!selectMode}
+                onDragStart={(e) => handleDragStart(e, participant)}
+                onDragEnd={handleDragEnd}
+                onDragOver={handleCardDragOver}
+                onDrop={(e) => handleCardDrop(e, participant)}
+                onClick={() => handleParticipantClick(participant)}
+                className={`group relative flex ${selectMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"} flex-col items-center rounded-lg bg-white p-1 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md ${stageBorderColors[participant.stage]} ${
+                  draggedId === participant.id ? "opacity-30" : ""
+                } ${selectedIds.has(participant.id) ? "ring-4 ring-indigo-500 ring-offset-1" : ""}`}
+              >
+                {selectMode && (
+                  <div
+                    className={`absolute -top-1.5 -left-1.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white shadow-sm ${
+                      selectedIds.has(participant.id) ? "bg-indigo-600" : "bg-gray-300"
+                    }`}
+                  >
+                    {selectedIds.has(participant.id) && <CheckSquare className="h-2.5 w-2.5 text-white" />}
+                  </div>
+                )}
+                <div className="relative">
+                  <img
+                    src={participant.image}
+                    alt={participant.name}
+                    className="h-10 w-10 rounded-full object-cover"
+                    draggable={false}
+                    onError={(e) => {
+                      e.target.style.display = "none";
+                      e.target.parentElement.innerHTML = `
+                        <div class="h-7 w-7 rounded-full flex items-center justify-center text-white text-[7px] font-bold bg-gray-400">
+                          ${participant.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
                         </div>
-                      )}
-
-                      <div className="relative">
-                        <img
-                          src={p.image}
-                          alt={p.name}
-                          className="h-10 w-10 rounded-full object-cover"
-                          draggable={false}
-                          onError={(e) => {
-                            e.target.style.display = "none";
-                            e.target.parentElement.innerHTML = `
-                              <div class="h-7 w-7 rounded-full flex items-center justify-center text-white text-[7px] font-bold bg-gray-400">
-                                ${p.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
-                              </div>
-                            `;
-                          }}
-                        />
-                        {p.timer > 0 && (
-                          <div className="absolute -bottom-0.5 -right-0.5 rounded-full border border-white bg-red-500 p-0.5 shadow-sm">
-                            <Clock className="h-2 w-2 text-white" />
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="mt-0.5 w-full truncate text-center text-[10px] font-semibold leading-tight text-black">
-                        {p.name}
-                      </div>
-
-                       <div className="mt-0.5 w-full truncate text-center text-[10px] font-semibold leading-tight text-black">
-                        ({p.role})
-                      </div>
-
-                      {/* Trainer name with colored background box */}
-                      <div className="mt-0.5 w-full flex justify-center">
-                        <span className={`px-1 py-0.5 rounded text-[9px] font-semibold ${trainerColor?.bg || 'bg-gray-400'} text-white`}>
-                          {p.trainer}
-                        </span>
-                      </div>
-
-                      {p.timer > 0 && (
-                        <div className={`mt-0.5 text-[10px] font-bold ${p.timer < 60 ? "animate-pulse text-red-500" : "text-blue-500"}`}>
-                          {formatTime(p.timer)}
-                        </div>
-                      )}
+                      `;
+                    }}
+                  />
+                  {participant.timer > 0 && (
+                    <div className="absolute -bottom-0.5 -right-0.5 rounded-full border border-white bg-red-500 p-0.5 shadow-sm">
+                      <Clock className="h-2 w-2 text-white" />
                     </div>
-                  );
-                })}
-                {participantsInRoom.length === 0 && (
-                  <div className="text-center text-[8px] text-gray-400 py-4">
-                    {isDragOverEmpty ? "Drop here" : "—"}
+                  )}
+                </div>
+                <div className="mt-0.5 w-full truncate text-center text-[10px] font-semibold leading-tight text-black">
+                  {participant.name}
+                </div>
+                <div className="mt-0.5 w-full truncate text-center text-[10px] font-semibold leading-tight text-black">
+                  ({participant.role})
+                </div>
+                <div className="mt-0.5 w-full flex justify-center">
+                  <span className={`px-1 py-0.5 rounded text-[9px] font-semibold ${trainerColors[participant.trainer]?.bg || 'bg-gray-400'} text-white`}>
+                    {participant.trainer}
+                  </span>
+                </div>
+                {participant.timer > 0 && (
+                  <div className={`mt-0.5 text-[10px] font-bold ${participant.timer < 60 ? "animate-pulse text-red-500" : "text-blue-500"}`}>
+                    {formatTime(participant.timer)}
                   </div>
                 )}
               </div>
-            </div>
-          );
-        })}
-      </div>
+            ) : (
+              <div className="text-center text-[8px] text-gray-300 py-4">—</div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  ))}
+</div>
 
        {/* Trainer Legend */}
       <div className="mt-3 rounded-xl border border-gray-200 bg-white px-4 py-2 shadow-sm">
