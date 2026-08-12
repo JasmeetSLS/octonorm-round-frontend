@@ -14,6 +14,7 @@ import {
   CheckSquare,
   Square,
   MousePointerClick,
+  Bike,
 } from "lucide-react";
 
 export default function DigitalFlow() {
@@ -34,18 +35,18 @@ export default function DigitalFlow() {
   const [showBulkTrainer, setShowBulkTrainer] = useState(false);
 
   // Octonorm room names - no colors
-  const octonormRooms = [
-    { id: 1, name: "Octonorm 1" },
-    { id: 2, name: "Octonorm 2" },
-    { id: 3, name: "Octonorm 3" },
-    { id: 4, name: "Octonorm 4" },
-    { id: 5, name: "Octonorm 5" },
-    { id: 6, name: "Octonorm 6" },
-    { id: 7, name: "Octonorm 7" },
-    { id: 8, name: "Octonorm 8" },
-    { id: 9, name: "Octonorm 9" },
-    { id: 10, name: "Octonorm 10" },
-  ];
+const octonormRooms = [
+  { id: 1, name: "Octonorm 1" },
+  { id: 2, name: "Octonorm 2" },
+  { id: 3, name: "Octonorm 3", bikeName: "HF Deluxe" },
+  { id: 4, name: "Octonorm 4", bikeName: "GlamourX-1" },
+  { id: 5, name: "Octonorm 5" },
+  { id: 6, name: "Octonorm 6" },
+  { id: 7, name: "Octonorm 7" },
+  { id: 8, name: "Octonorm 8" },
+  { id: 9, name: "Octonorm 9", bikeName: "Destini 125-2" },
+  { id: 10, name: "Octonorm 10", bikeName: "Xoom 125" },
+];
 
   // Trainer/Evaluator names with only background colors
   const trainerColors = {
@@ -68,56 +69,56 @@ export default function DigitalFlow() {
 
 // Participant folder names with their assigned trainers (based on your list)
 const participantData = [
-  { folder: "Aiswarya_Vijayan_18655", trainer: "Abhisheks" },
-  { folder: "Anson_Daniel_90226540", trainer: "Pooja Bora" },
-  { folder: "Athi_Raja_503666", trainer: "Hitendra" },
-  { folder: "D_Shanker_Naik_503825", trainer: "Manjira" },
-  { folder: "Hanuma_Ram_503709", trainer: "Amit" },
-  { folder: "Lavanya_Sen_18642", trainer: "Sagar" },
-  { folder: "Mari_Prakash_503816", trainer: "Vinendra" },
-  { folder: "Nisha_Patel_16362", trainer: "Balshree" },
-  { folder: "Prasanth_Josi_16367", trainer: "Madhu TV" },
-  { folder: "Ramachandran_S_90178761", trainer: "Mithir" },
-  { folder: "Samarth___90163255", trainer: "Abhisheks" },
-  { folder: "Sravan_Reddy_18349", trainer: "Pooja Bora" },
-  { folder: "Vallabhaneni_Kumar_16158", trainer: "Hitendra" },
-  { folder: "Akash_B_18087", trainer: "Manjira" },
-  { folder: "Arun_K_Narayan_19225", trainer: "Amit" },
-  { folder: "Barath_Selvakumar_90236226", trainer: "Sagar" },
-  { folder: "DHANASEALAN_L_18247", trainer: "Vinendra" },
-  { folder: "K_JAGADEESHWARRREDDY_16401", trainer: "Balshree" },
-  { folder: "Mahesh_Bavirisetti_13961", trainer: "Madhu TV" },
-  { folder: "Mohamed_Anishkhan_16245", trainer: "Mithir" },
-  { folder: "Pankaj_Khode_14880", trainer: "Abhisheks" },
-  { folder: "Prashantha_Kumara_D_K_10801", trainer: "Pooja Bora" },
-  { folder: "Rayies_S_90185205", trainer: "Hitendra" },
-  { folder: "Samiksha_Lajurkar_16638", trainer: "Manjira" },
-  { folder: "Sridharan_K_M_90184106", trainer: "Amit" },
-  { folder: "Venkatesh_90205575", trainer: "Sagar" },
-  { folder: "Anil___90222590", trainer: "Vinendra" },
-  { folder: "Ashita_Jain_16669", trainer: "Balshree" },
-  { folder: "Bhavana_Choudhary_17656", trainer: "Madhu TV" },
-  { folder: "Dileep___503845", trainer: "Mithir" },
-  { folder: "karthick_M_19128", trainer: "Abhisheks" },
-  { folder: "Manikanta___90176461", trainer: "Pooja Bora" },
-  { folder: "Moorthy_V_18103", trainer: "Hitendra" },
-  { folder: "Perumandla_Vivekananda_16365", trainer: "Manjira" },
-  { folder: "R_Sesha_Sai_16134", trainer: "Amit" },
-  { folder: "S_Rajeshwar_Reddy_17347", trainer: "Sagar" },
-  { folder: "Santosh_M_17256", trainer: "Vinendra" },
-  { folder: "Srikar___16091", trainer: "Balshree" },
-  { folder: "Annapragada_Dheeraj_18929", trainer: "Madhu TV" },
-  { folder: "Ashker_PP_503747", trainer: "Mithir" },
-  { folder: "Buddharaju_Seetaramaraju_16087", trainer: "Abhisheks" },
-  { folder: "Gulothungan_16699", trainer: "Pooja Bora" },
-  { folder: "Kiran_P_Revankar_P015509", trainer: "Hitendra" },
-  { folder: "Manoj_Alandkar_90164475", trainer: "Manjira" },
-  { folder: "Natarajan___90240344", trainer: "Amit" },
-  { folder: "Prasad___90166297", trainer: "Sagar" },
-  { folder: "Rakesh___503821", trainer: "Vinendra" },
-  { folder: "Sakshi_Dhangekar_16371", trainer: "Balshree" },
-  { folder: "Siddarthan_Ps_18941", trainer: "Madhu TV" },
-  { folder: "Sudish_Pai_17436", trainer: "Mithir" },
+  { folder: "Aiswarya_Vijayan_18655", trainer: "Abhisheks", role: "DSE" },
+  { folder: "Anson_Daniel_90226540", trainer: "Pooja Bora", role: "TC" },
+  { folder: "Athi_Raja_503666", trainer: "Hitendra", role: "HSE" },
+  { folder: "D_Shanker_Naik_503825", trainer: "Manjira", role: "DFM" },
+  { folder: "Hanuma_Ram_503709", trainer: "Amit", role: "SNE" },
+  { folder: "Lavanya_Sen_18642", trainer: "Sagar", role: "PSC" },
+  { folder: "Mari_Prakash_503816", trainer: "Vinendra", role: "DSE" },
+  { folder: "Nisha_Patel_16362", trainer: "Balshree", role: "TC" },
+  { folder: "Prasanth_Josi_16367", trainer: "Madhu TV", role: "HSE" },
+  { folder: "Ramachandran_S_90178761", trainer: "Mithir", role: "DFM" },
+  { folder: "Samarth___90163255", trainer: "Abhisheks", role: "SNE" },
+  { folder: "Sravan_Reddy_18349", trainer: "Pooja Bora", role: "PSC" },
+  { folder: "Vallabhaneni_Kumar_16158", trainer: "Hitendra", role: "DSE" },
+  { folder: "Akash_B_18087", trainer: "Manjira", role: "TC" },
+  { folder: "Arun_K_Narayan_19225", trainer: "Amit", role: "HSE" },
+  { folder: "Barath_Selvakumar_90236226", trainer: "Sagar", role: "DFM" },
+  { folder: "DHANASEALAN_L_18247", trainer: "Vinendra", role: "SNE" },
+  { folder: "K_JAGADEESHWARRREDDY_16401", trainer: "Balshree", role: "PSC" },
+  { folder: "Mahesh_Bavirisetti_13961", trainer: "Madhu TV", role: "DSE" },
+  { folder: "Mohamed_Anishkhan_16245", trainer: "Mithir", role: "TC" },
+  { folder: "Pankaj_Khode_14880", trainer: "Abhisheks", role: "HSE" },
+  { folder: "Prashantha_Kumara_D_K_10801", trainer: "Pooja Bora", role: "DFM" },
+  { folder: "Rayies_S_90185205", trainer: "Hitendra", role: "SNE" },
+  { folder: "Samiksha_Lajurkar_16638", trainer: "Manjira", role: "PSC" },
+  { folder: "Sridharan_K_M_90184106", trainer: "Amit", role: "DSE" },
+  { folder: "Venkatesh_90205575", trainer: "Sagar", role: "TC" },
+  { folder: "Anil___90222590", trainer: "Vinendra", role: "HSE" },
+  { folder: "Ashita_Jain_16669", trainer: "Balshree", role: "DFM" },
+  { folder: "Bhavana_Choudhary_17656", trainer: "Madhu TV", role: "SNE" },
+  { folder: "Dileep___503845", trainer: "Mithir", role: "PSC" },
+  { folder: "karthick_M_19128", trainer: "Abhisheks", role: "DSE" },
+  { folder: "Manikanta___90176461", trainer: "Pooja Bora", role: "TC" },
+  { folder: "Moorthy_V_18103", trainer: "Hitendra", role: "HSE" },
+  { folder: "Perumandla_Vivekananda_16365", trainer: "Manjira", role: "DFM" },
+  { folder: "R_Sesha_Sai_16134", trainer: "Amit", role: "SNE" },
+  { folder: "S_Rajeshwar_Reddy_17347", trainer: "Sagar", role: "PSC" },
+  { folder: "Santosh_M_17256", trainer: "Vinendra", role: "DSE" },
+  { folder: "Srikar___16091", trainer: "Balshree", role: "TC" },
+  { folder: "Annapragada_Dheeraj_18929", trainer: "Madhu TV", role: "HSE" },
+  { folder: "Ashker_PP_503747", trainer: "Mithir", role: "DFM" },
+  { folder: "Buddharaju_Seetaramaraju_16087", trainer: "Abhisheks", role: "SNE" },
+  { folder: "Gulothungan_16699", trainer: "Pooja Bora", role: "PSC" },
+  { folder: "Kiran_P_Revankar_P015509", trainer: "Hitendra", role: "DSE" },
+  { folder: "Manoj_Alandkar_90164475", trainer: "Manjira", role: "TC" },
+  { folder: "Natarajan___90240344", trainer: "Amit", role: "HSE" },
+  { folder: "Prasad___90166297", trainer: "Sagar", role: "DFM" },
+  { folder: "Rakesh___503821", trainer: "Vinendra", role: "SNE" },
+  { folder: "Sakshi_Dhangekar_16371", trainer: "Balshree", role: "PSC" },
+  { folder: "Siddarthan_Ps_18941", trainer: "Madhu TV", role: "DSE" },
+  { folder: "Sudish_Pai_17436", trainer: "Mithir", role: "TC" },
 ];
 
 // Function to extract name and empId from folder name
@@ -129,14 +130,12 @@ const parseFolderName = (folderName) => {
   const name = nameParts.join(' ');
   return { name, empId };
 };
-const roles = ["TC", "DFM", "SHE", "HSE", "PSC", "SNE", "DSE", "DPH", "TCI"];
 
 const generateParticipants = () => {
   const participants = [];
   for (let i = 0; i < participantData.length; i++) {
     const data = participantData[i];
     const { name, empId } = parseFolderName(data.folder);
-    const role = roles[i % roles.length];
     const trainerName = data.trainer;
     const trainerIndex = trainerNames.indexOf(trainerName);
     const octonormIndex = i % octonormRooms.length;
@@ -145,7 +144,7 @@ const generateParticipants = () => {
       id: `P${String(i + 1).padStart(2, "0")}`,
       name: name,
       empId: empId,
-      role: role,
+      role: data.role,                 // 👈 now from participantData
       image: `/userImages/${data.folder}/profile.jpg`,
       timer: null,
       score: null,
@@ -571,17 +570,25 @@ const generateParticipants = () => {
         </button>
       </div>
 
-      {/* Octonorm Header Row - No Colors */}
-      <div className="grid grid-cols-10 gap-1 mb-2">
-        {octonormRooms.map((room) => (
-          <div
-            key={room.id}
-            className="rounded-t-lg py-1.5 px-2 text-center text-white font-bold text-xs bg-gray-700"
-          >
-            {room.name.replace("Octonorm ", "O")}
-          </div>
-        ))}
-      </div>
+     {/* Octonorm Header Row - No Colors */}
+<div className="grid grid-cols-10 gap-1 mb-2">
+  {octonormRooms.map((room) => (
+    <div
+      key={room.id}
+      className="rounded-t-lg py-1.5 px-2 text-center bg-gray-700 flex flex-col items-center leading-tight"
+    >
+      {room.bikeName && (
+        <span className="text-yellow-400 font-bold text-[10px] flex items-center gap-0.5">
+          <Bike className="h-3 w-3" />
+          {room.bikeName}
+        </span>
+      )}
+      <span className="text-white font-bold text-xs">
+        {room.name.replace("Octonorm ", "O")}
+      </span>
+    </div>
+  ))}
+</div>
 
       {/* Octonorm Content - All 10 Columns Side by Side */}
       <div className="grid grid-cols-10 gap-1">
@@ -655,6 +662,10 @@ const generateParticipants = () => {
 
                       <div className="mt-0.5 w-full truncate text-center text-[10px] font-semibold leading-tight text-black">
                         {p.name}
+                      </div>
+
+                       <div className="mt-0.5 w-full truncate text-center text-[10px] font-semibold leading-tight text-black">
+                        ({p.role})
                       </div>
 
                       {/* Trainer name with colored background box */}
