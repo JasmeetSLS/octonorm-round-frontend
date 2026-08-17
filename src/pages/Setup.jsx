@@ -4,7 +4,10 @@ import axios from "axios";
 import {
   Clock, Gamepad2, Hourglass, Settings, ClipboardList, Flag,
   Users, X, UserCog, Monitor, CheckSquare, Square, MousePointerClick, Bike,
+  LogOut,
 } from "lucide-react";
+import { getSetup, updateParticipantOrder } from "../../services/api";
+import { useNavigate } from "react-router-dom";
 
 // ---- Color palette (10 distinct colors) ----
 const colorPalette = [
@@ -55,12 +58,14 @@ export default function DigitalFlow() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [showBulkTrainer, setShowBulkTrainer] = useState(false);
 
+  const navigate = useNavigate();
+
   // ---- Fetch ----
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const response = await axios.get("http://localhost:5000/api/setup");
+     const fetchData = async () => {
+    try {
+      setLoading(true);
+  const response = await getSetup();
         if (response.data.success) {
           const { setup, trainers, rooms, participants: dbParticipants, rounds } = response.data.data;
           setSetup(setup);
@@ -191,23 +196,20 @@ export default function DigitalFlow() {
   });
 
   // ---- Save order to backend ----
-  const saveOrder = async (participantsList) => {
-    if (!setup?.id) return;
-    const roomsMap = {};
-    participantsList.forEach(p => {
-      const roomId = p.octonormId;
-      if (!roomsMap[roomId]) roomsMap[roomId] = [];
-      roomsMap[roomId].push(p.dbId); // numeric DB id
-    });
-    try {
-      await axios.put('http://localhost:5000/api/participants/order', {
-        setup_id: setup.id,
-        rooms: roomsMap
-      });
-    } catch (err) {
-      console.error('Failed to save order:', err);
-    }
-  };
+const saveOrder = async (participantsList) => {
+  if (!setup?.id) return;
+  const roomsMap = {};
+  participantsList.forEach(p => {
+    const roomId = p.octonormId;
+    if (!roomsMap[roomId]) roomsMap[roomId] = [];
+    roomsMap[roomId].push(p.dbId);
+  });
+  try {
+    await updateParticipantOrder(setup.id, roomsMap);
+  } catch (err) {
+    console.error('Failed to save order:', err);
+  }
+};
 
   // ---- Handlers ----
   const handleChangeTrainerForParticipant = (participant) => {
@@ -436,6 +438,13 @@ const handleCardDrop = (e, targetParticipant) => {
     });
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    delete axios.defaults.headers.common["Authorization"];
+    navigate("/login");
+  };
+
   // ---- Get current and next labels ----
   const getStepLabels = (currentKey) => {
     const idx = stepKeys.indexOf(currentKey);
@@ -487,6 +496,16 @@ const handleCardDrop = (e, targetParticipant) => {
 
   return (
     <div className="min-h-screen bg-[#F3F4F6] p-4 font-sans pb-24">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold text-gray-800">Digital Flow</h1>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg shadow-md transition"
+        >
+          <LogOut className="h-4 w-4" />
+          Logout
+        </button>
+      </div>
       {/* Top stat strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-3">
         <div className="relative col-span-2 sm:col-span-1 overflow-hidden rounded-2xl bg-gradient-to-br from-[#0B0E1F] to-[#171B34] p-4 text-white shadow-lg">

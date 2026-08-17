@@ -1,13 +1,22 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import Login from "./pages/Login";
 import Setup from "./pages/Setup";
-import AdminPanel from "./pages/AdminPanel";
+import PrivateRoute from "./components/PrivateRoute";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Setup />} />
-        <Route path="/admin/panel" element={<AdminPanel />} />
+        <Route path="/login" element={<Login />} />
+        <Route
+          path="/setup"
+          element={
+            <PrivateRoute>
+              <Setup />
+            </PrivateRoute>
+          }
+        />
+        <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
   );
