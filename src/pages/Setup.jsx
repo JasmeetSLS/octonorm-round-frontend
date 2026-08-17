@@ -1,4 +1,4 @@
-// DigitalFlow.jsx – fully dynamic, colors by sequence
+// DigitalFlow.jsx – fully dynamic with hold-after-round steps
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import {
@@ -26,8 +26,6 @@ const borderColors = [
   "border-pink-400", "border-teal-400", "border-indigo-400",
   "border-gray-400"
 ];
-const borderHoverColors = borderColors.map(c => c.replace('400','500'));
-
 const bgClasses = [
   "bg-purple-500", "bg-rose-500", "bg-sky-500",
   "bg-orange-500", "bg-emerald-500", "bg-amber-500",
@@ -127,13 +125,15 @@ export default function DigitalFlow() {
     time_per_bike_round: 10,
   };
 
-  // ---- Build dynamic step sequence ----
+  // ---- Build dynamic step sequence (including hold-after-round) ----
   const getEnabledSteps = () => {
     const steps = [];
     steps.push({ key: "main", label: "MAIN" });
     if (setup?.hold_area_pre) steps.push({ key: "holding", label: "HOLD (PRE)" });
     if (setup?.preparation_enabled) steps.push({ key: "prep", label: "PREP" });
+
     rounds.forEach((r) => {
+      // Round step
       steps.push({
         key: `round_${r.id}`,
         label: r.name,
@@ -142,7 +142,17 @@ export default function DigitalFlow() {
         time: r.time_minutes,
         roundId: r.id,
       });
+      // Insert hold after this round if hold_area = 1
+      if (r.hold_area === 1) {
+        steps.push({
+          key: `hold_after_round_${r.id}`,
+          label: `Hold (after ${r.name})`,
+          isHoldAfterRound: true,
+          roundId: r.id,
+        });
+      }
     });
+
     if (setup?.hold_area_post) steps.push({ key: "completed", label: "HOLD (POST)" });
     return steps;
   };
@@ -164,6 +174,9 @@ export default function DigitalFlow() {
     if (step.isRound) {
       const roundIndex = rounds.findIndex(r => r.id === step.roundId);
       Icon = roundIndex === 0 ? ClipboardList : Monitor;
+    }
+    if (step.isHoldAfterRound) {
+      Icon = Hourglass;
     }
     if (!Icon) Icon = Gamepad2;
     const colors = colorPalette[idx % colorPalette.length];
@@ -215,23 +228,23 @@ export default function DigitalFlow() {
 
     setParticipants(prev => {
       const updates = { stage: targetKey };
+      // Reset timer/booth/evaluator for prep and rounds; set timer for prep and rounds
+      // For hold steps and completed, clear timer and auxiliary fields
       if (targetKey === "prep") {
         const boothNumber = (prev.filter(p => p.stage === "prep").length % setupData.preparation_booths) + 1;
         updates.booth = boothNumber;
         updates.timer = setupData.preparation_time_per_case * 60;
+      } else {
+        // Clear booth and evaluator for non-prep steps
+        updates.booth = null;
+        updates.evaluator = null;
       }
       const targetStep = enabledSteps.find(s => s.key === targetKey);
       if (targetStep?.isRound) {
         const round = rounds.find(r => r.id === targetStep.roundId);
         updates.timer = round ? round.time_minutes * 60 : 10 * 60;
-        // reset evaluator/booth if any
-        updates.evaluator = null;
-        updates.booth = null;
-      }
-      if (targetKey === "completed") {
+      } else if (targetStep?.isHoldAfterRound || targetKey === "completed") {
         updates.timer = null;
-        updates.booth = null;
-        updates.evaluator = null;
       }
       return prev.map(p =>
         p.id === selectedParticipant.id ? { ...p, ...updates } : p
@@ -269,18 +282,16 @@ export default function DigitalFlow() {
           prepCounter++;
           updates.booth = boothNumber;
           updates.timer = setupData.preparation_time_per_case * 60;
+        } else {
+          updates.booth = null;
+          updates.evaluator = null;
         }
         const targetStep = enabledSteps.find(s => s.key === targetKey);
         if (targetStep?.isRound) {
           const round = rounds.find(r => r.id === targetStep.roundId);
           updates.timer = round ? round.time_minutes * 60 : 10 * 60;
-          updates.booth = null;
-          updates.evaluator = null;
-        }
-        if (targetKey === "completed") {
+        } else if (targetStep?.isHoldAfterRound || targetKey === "completed") {
           updates.timer = null;
-          updates.booth = null;
-          updates.evaluator = null;
         }
         return { ...p, ...updates };
       });
@@ -456,7 +467,7 @@ export default function DigitalFlow() {
           );
         })}
 
-        <div className="col-span-2 sm:col-span-4 lg:col-span-1 rounded-2xl border border-gray-200 bg-white p-4 shadow-lg">
+        {/* <div className="col-span-2 sm:col-span-4 lg:col-span-1 rounded-2xl border border-gray-200 bg-white p-4 shadow-lg">
           <div className="flex items-center justify-between">
             <svg width="90" height="20" viewBox="0 0 90 20" className="text-gray-800">
               {[2, 4, 2, 6, 3, 2, 5, 2, 4, 2, 6, 2, 3, 5, 2, 4, 2, 3, 6, 2].map((w, idx) => {
@@ -472,7 +483,7 @@ export default function DigitalFlow() {
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
             <span className="text-[11px] text-gray-500">All Systems Live</span>
           </div>
-        </div>
+        </div> */}
       </div>
 
       {/* Select mode bar */}
