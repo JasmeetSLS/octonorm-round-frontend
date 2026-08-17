@@ -1,4 +1,4 @@
-// DigitalFlow.jsx – fully dynamic with hold-after-round steps
+// DigitalFlow.jsx – fully dynamic with hold-after-round steps and drag persistence
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import {
@@ -81,7 +81,7 @@ export default function DigitalFlow() {
             trainerId: p.trainer_id,
             octonormId: p.room_id,
             stage: p.stage || "main",
-            dbId: p.id,
+            dbId: p.id, // numeric id from DB
           })));
         } else setError("Failed to load data");
       } catch (err) { setError(err.message); } finally { setLoading(false); }
@@ -190,6 +190,25 @@ export default function DigitalFlow() {
     };
   });
 
+  // ---- Save order to backend ----
+  const saveOrder = async (participantsList) => {
+    if (!setup?.id) return;
+    const roomsMap = {};
+    participantsList.forEach(p => {
+      const roomId = p.octonormId;
+      if (!roomsMap[roomId]) roomsMap[roomId] = [];
+      roomsMap[roomId].push(p.dbId); // numeric DB id
+    });
+    try {
+      await axios.put('http://localhost:5000/api/participants/order', {
+        setup_id: setup.id,
+        rooms: roomsMap
+      });
+    } catch (err) {
+      console.error('Failed to save order:', err);
+    }
+  };
+
   // ---- Handlers ----
   const handleChangeTrainerForParticipant = (participant) => {
     setSelectedTrainerForParticipant(participant);
@@ -220,7 +239,7 @@ export default function DigitalFlow() {
     setPopupAction("");
   };
 
-  // ---- Move participant ----
+  // ---- Move participant (single) ----
   const handleMove = () => {
     if (!selectedParticipant) return;
     const targetKey = getNextStage(selectedParticipant.stage);
@@ -228,14 +247,11 @@ export default function DigitalFlow() {
 
     setParticipants(prev => {
       const updates = { stage: targetKey };
-      // Reset timer/booth/evaluator for prep and rounds; set timer for prep and rounds
-      // For hold steps and completed, clear timer and auxiliary fields
       if (targetKey === "prep") {
         const boothNumber = (prev.filter(p => p.stage === "prep").length % setupData.preparation_booths) + 1;
         updates.booth = boothNumber;
         updates.timer = setupData.preparation_time_per_case * 60;
       } else {
-        // Clear booth and evaluator for non-prep steps
         updates.booth = null;
         updates.evaluator = null;
       }
@@ -246,9 +262,12 @@ export default function DigitalFlow() {
       } else if (targetStep?.isHoldAfterRound || targetKey === "completed") {
         updates.timer = null;
       }
-      return prev.map(p =>
+      const newList = prev.map(p =>
         p.id === selectedParticipant.id ? { ...p, ...updates } : p
       );
+      // Save order (stage changes don't affect room/position, but we call it anyway)
+      saveOrder(newList);
+      return newList;
     });
     closePopup();
   };
@@ -272,7 +291,7 @@ export default function DigitalFlow() {
   const handleBulkAdvance = () => {
     setParticipants(prev => {
       let prepCounter = prev.filter(p => p.stage === "prep").length;
-      return prev.map(p => {
+      const newList = prev.map(p => {
         if (!selectedIds.has(p.id)) return p;
         const targetKey = getNextStage(p.stage);
         if (!targetKey) return p;
@@ -295,6 +314,9 @@ export default function DigitalFlow() {
         }
         return { ...p, ...updates };
       });
+      // Save order (room/position unchanged)
+      saveOrder(newList);
+      return newList;
     });
     clearSelection();
   };
@@ -302,11 +324,13 @@ export default function DigitalFlow() {
   const handleBulkSelectTrainer = (trainerIndex) => {
     const trainerName = trainerNames[trainerIndex];
     const trainerId = trainers.find(t => t.name === trainerName)?.id;
-    setParticipants(prev =>
-      prev.map(p =>
+    setParticipants(prev => {
+      const newList = prev.map(p =>
         selectedIds.has(p.id) ? { ...p, trainer: trainerName, trainerId } : p
-      )
-    );
+      );
+      saveOrder(newList); // not needed but harmless
+      return newList;
+    });
     setShowBulkTrainer(false);
     clearSelection();
   };
@@ -333,6 +357,7 @@ export default function DigitalFlow() {
   };
 
   const handleCardDragOver = (e) => e.preventDefault();
+
   const handleCardDrop = (e, targetParticipant) => {
     e.preventDefault();
     e.stopPropagation();
@@ -341,6 +366,7 @@ export default function DigitalFlow() {
     setDragOverRoomId(null);
     setDraggedId(null);
     if (!sourceId || sourceId === targetParticipant.id) return;
+
     setParticipants(prev => {
       const arr = [...prev];
       const fromIndex = arr.findIndex(p => p.id === sourceId);
@@ -350,6 +376,8 @@ export default function DigitalFlow() {
       const toIndex = arr.findIndex(p => p.id === targetParticipant.id);
       const insertIndex = toIndex === -1 ? arr.length : toIndex;
       arr.splice(insertIndex, 0, updatedItem);
+      // Save the new order
+      saveOrder(arr);
       return arr;
     });
   };
@@ -362,6 +390,7 @@ export default function DigitalFlow() {
     setDragOverRoomId(null);
     setDraggedId(null);
     if (!sourceId) return;
+
     setParticipants(prev => {
       const arr = [...prev];
       const fromIndex = arr.findIndex(p => p.id === sourceId);
@@ -378,7 +407,11 @@ export default function DigitalFlow() {
         const toIndex = arr.findIndex(p => p.id === targetParticipant.id);
         if (toIndex === -1) arr.push({ ...item, octonormId: roomId });
         else arr.splice(toIndex, 0, { ...item, octonormId: roomId });
-      } else arr.push({ ...item, octonormId: roomId });
+      } else {
+        arr.push({ ...item, octonormId: roomId });
+      }
+      // Save the new order
+      saveOrder(arr);
       return arr;
     });
   };
@@ -466,24 +499,6 @@ export default function DigitalFlow() {
             </div>
           );
         })}
-
-        {/* <div className="col-span-2 sm:col-span-4 lg:col-span-1 rounded-2xl border border-gray-200 bg-white p-4 shadow-lg">
-          <div className="flex items-center justify-between">
-            <svg width="90" height="20" viewBox="0 0 90 20" className="text-gray-800">
-              {[2, 4, 2, 6, 3, 2, 5, 2, 4, 2, 6, 2, 3, 5, 2, 4, 2, 3, 6, 2].map((w, idx) => {
-                let x = 0;
-                for (let k = 0; k < idx; k++) x += [2, 4, 2, 6, 3, 2, 5, 2, 4, 2, 6, 2, 3, 5, 2, 4, 2, 3, 6, 2][k] + 1;
-                return <rect key={idx} x={x} y="0" width={w} height="20" fill="currentColor" />;
-              })}
-            </svg>
-            <span className="text-amber-400 text-xs">★★★★★</span>
-          </div>
-          <p className="mt-2 text-sm font-bold text-gray-800">CONTROLLER PANEL</p>
-          <div className="mt-1 flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            <span className="text-[11px] text-gray-500">All Systems Live</span>
-          </div>
-        </div> */}
       </div>
 
       {/* Select mode bar */}
