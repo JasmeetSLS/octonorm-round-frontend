@@ -1,4 +1,4 @@
-// DigitalFlow.jsx – fully dynamic with hold-after-round steps and drag persistence
+// DigitalFlow.jsx – fully dynamic with hold-after-round steps, drag persistence and swap on card drop
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import {
@@ -265,7 +265,6 @@ export default function DigitalFlow() {
       const newList = prev.map(p =>
         p.id === selectedParticipant.id ? { ...p, ...updates } : p
       );
-      // Save order (stage changes don't affect room/position, but we call it anyway)
       saveOrder(newList);
       return newList;
     });
@@ -314,7 +313,6 @@ export default function DigitalFlow() {
         }
         return { ...p, ...updates };
       });
-      // Save order (room/position unchanged)
       saveOrder(newList);
       return newList;
     });
@@ -328,7 +326,7 @@ export default function DigitalFlow() {
       const newList = prev.map(p =>
         selectedIds.has(p.id) ? { ...p, trainer: trainerName, trainerId } : p
       );
-      saveOrder(newList); // not needed but harmless
+      saveOrder(newList);
       return newList;
     });
     setShowBulkTrainer(false);
@@ -358,30 +356,43 @@ export default function DigitalFlow() {
 
   const handleCardDragOver = (e) => e.preventDefault();
 
-  const handleCardDrop = (e, targetParticipant) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragOccurredRef.current = true;
-    const sourceId = draggedId;
-    setDragOverRoomId(null);
-    setDraggedId(null);
-    if (!sourceId || sourceId === targetParticipant.id) return;
+  // ***** SWAP on card drop *****
+const handleCardDrop = (e, targetParticipant) => {
+  e.preventDefault();
+  e.stopPropagation();
+  dragOccurredRef.current = true;
+  const sourceId = draggedId;
+  setDragOverRoomId(null);
+  setDraggedId(null);
+  if (!sourceId || sourceId === targetParticipant.id) return;
 
-    setParticipants(prev => {
-      const arr = [...prev];
-      const fromIndex = arr.findIndex(p => p.id === sourceId);
-      if (fromIndex === -1) return prev;
-      const [item] = arr.splice(fromIndex, 1);
-      const updatedItem = { ...item, octonormId: targetParticipant.octonormId };
-      const toIndex = arr.findIndex(p => p.id === targetParticipant.id);
-      const insertIndex = toIndex === -1 ? arr.length : toIndex;
-      arr.splice(insertIndex, 0, updatedItem);
-      // Save the new order
-      saveOrder(arr);
-      return arr;
-    });
-  };
+  setParticipants(prev => {
+    const arr = [...prev];
+    const fromIndex = arr.findIndex(p => p.id === sourceId);
+    const toIndex = arr.findIndex(p => p.id === targetParticipant.id);
+    if (fromIndex === -1 || toIndex === -1) return prev;
 
+    const sourceRoom = arr[fromIndex].octonormId;
+    const targetRoom = arr[toIndex].octonormId;
+
+    if (sourceRoom === targetRoom) {
+      // Same room: swap the two participants
+      [arr[fromIndex], arr[toIndex]] = [arr[toIndex], arr[fromIndex]];
+    } else {
+      // Different room: insert (move) the dragged participant to the target room/position
+      const [dragged] = arr.splice(fromIndex, 1);
+      dragged.octonormId = targetRoom;
+      const insertIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+      arr.splice(insertIndex, 0, dragged);
+    }
+
+    // Persist the new order to the backend
+    saveOrder(arr);
+    return arr;
+  });
+};
+
+  // ***** INSERT on cell drop (empty cell) *****
   const handleCellDrop = (e, roomId, rowIndex) => {
     e.preventDefault();
     e.stopPropagation();
@@ -396,20 +407,29 @@ export default function DigitalFlow() {
       const fromIndex = arr.findIndex(p => p.id === sourceId);
       if (fromIndex === -1) return prev;
       const [item] = arr.splice(fromIndex, 1);
-      let count = 0, targetParticipant = null;
-      for (let p of arr) {
-        if (p.octonormId === roomId) {
-          if (count === rowIndex) { targetParticipant = p; break; }
-          count++;
-        }
-      }
-      if (targetParticipant) {
-        const toIndex = arr.findIndex(p => p.id === targetParticipant.id);
-        if (toIndex === -1) arr.push({ ...item, octonormId: roomId });
-        else arr.splice(toIndex, 0, { ...item, octonormId: roomId });
+
+      // Find the target index in the target room
+      const roomParticipants = arr.filter(p => p.octonormId === roomId);
+      const insertIdx = Math.min(rowIndex, roomParticipants.length);
+      // Actually we need to find the index in the full array where to insert.
+      // We'll find the position of the first participant in the room, then add rowIndex.
+      let globalInsertIndex = arr.findIndex(p => p.octonormId === roomId);
+      if (globalInsertIndex === -1) {
+        // If no participant in that room, append at end
+        globalInsertIndex = arr.length;
       } else {
-        arr.push({ ...item, octonormId: roomId });
+        // Count participants before the room
+        let count = 0;
+        let idx = 0;
+        while (idx < arr.length && arr[idx].octonormId !== roomId) {
+          idx++;
+        }
+        globalInsertIndex = idx + Math.min(rowIndex, roomParticipants.length);
       }
+      // Insert the item at that position
+      const updatedItem = { ...item, octonormId: roomId };
+      arr.splice(globalInsertIndex, 0, updatedItem);
+
       // Save the new order
       saveOrder(arr);
       return arr;
