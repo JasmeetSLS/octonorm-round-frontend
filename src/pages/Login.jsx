@@ -95,10 +95,6 @@ export default function Login() {
             )}
           </button>
         </form>
-
-        <div className="mt-6 text-center text-xs text-gray-500">
-          <p>Default admin: <span className="text-gray-300">admin</span> / <span className="text-gray-300">admin123</span></p>
-        </div>
       </div>
     </div>
   );

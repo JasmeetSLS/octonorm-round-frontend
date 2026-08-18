@@ -115,8 +115,12 @@ export default function DigitalFlow() {
   // ---- Trainer colors ----
   const trainerColors = {};
   trainers.forEach((t) => {
-    const colors = ["red-500", "blue-500", "green-500", "yellow-500", "purple-500", "pink-500", "indigo-500", "teal-500", "orange-500", "cyan-500"];
-    const idx = trainers.findIndex(t2 => t2.id === t.id) % colors.length;
+    const colors = [
+    "red-500", "green-500", "purple-500", "pink-500",
+    "indigo-500", "teal-500", "orange-500", "gray-500",
+    "rose-500", "sky-500"
+  ];
+   const idx = trainers.findIndex(t2 => t2.id === t.id) % colors.length;
     trainerColors[t.name] = { bg: `bg-${colors[idx]}` };
   });
   const trainerNames = trainers.map(t => t.name);
