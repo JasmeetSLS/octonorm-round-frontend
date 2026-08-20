@@ -1,4 +1,4 @@
-// DigitalFlow.jsx – fully dynamic with hold-after-round steps, drag persistence and swap on card drop
+// DigitalFlow.jsx – fully dynamic with hold-after-round steps, drag persistence, swap on card drop, and dynamic time slots
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import {
@@ -42,6 +42,7 @@ export default function DigitalFlow() {
   const [trainers, setTrainers] = useState([]);
   const [setup, setSetup] = useState(null);
   const [rounds, setRounds] = useState([]);
+  const [timeSlots, setTimeSlots] = useState([]);   // <-- new state
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -62,15 +63,16 @@ export default function DigitalFlow() {
 
   // ---- Fetch ----
   useEffect(() => {
-     const fetchData = async () => {
-    try {
-      setLoading(true);
-  const response = await getSetup();
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const response = await getSetup();
         if (response.data.success) {
-          const { setup, trainers, rooms, participants: dbParticipants, rounds } = response.data.data;
+          const { setup, trainers, rooms, participants: dbParticipants, rounds, timeSlots: dbTimeSlots } = response.data.data;
           setSetup(setup);
           setTrainers(trainers);
           setRounds(rounds);
+          setTimeSlots(dbTimeSlots || []);
           setRooms(rooms.map(r => ({ id: r.id, name: r.name, bikeName: r.vehicle_name || null })));
           setParticipants(dbParticipants.map(p => ({
             id: String(p.id),
@@ -86,7 +88,7 @@ export default function DigitalFlow() {
             trainerId: p.trainer_id,
             octonormId: p.room_id,
             stage: p.stage || "main",
-            dbId: p.id, // numeric id from DB
+            dbId: p.id,
           })));
         } else setError("Failed to load data");
       } catch (err) { setError(err.message); } finally { setLoading(false); }
@@ -116,11 +118,11 @@ export default function DigitalFlow() {
   const trainerColors = {};
   trainers.forEach((t) => {
     const colors = [
-    "red-500", "green-500", "purple-500", "pink-500",
-    "indigo-500", "teal-500", "orange-500", "gray-500",
-    "rose-500", "sky-500"
-  ];
-   const idx = trainers.findIndex(t2 => t2.id === t.id) % colors.length;
+      "red-500", "green-500", "purple-500", "pink-500",
+      "indigo-500", "teal-500", "orange-500", "gray-500",
+      "rose-500", "sky-500"
+    ];
+    const idx = trainers.findIndex(t2 => t2.id === t.id) % colors.length;
     trainerColors[t.name] = { bg: `bg-${colors[idx]}` };
   });
   const trainerNames = trainers.map(t => t.name);
@@ -142,7 +144,6 @@ export default function DigitalFlow() {
     if (setup?.preparation_enabled) steps.push({ key: "prep", label: "PREP" });
 
     rounds.forEach((r) => {
-      // Round step
       steps.push({
         key: `round_${r.id}`,
         label: r.name,
@@ -151,7 +152,6 @@ export default function DigitalFlow() {
         time: r.time_minutes,
         roundId: r.id,
       });
-      // Insert hold after this round if hold_area = 1
       if (r.hold_area === 1) {
         steps.push({
           key: `hold_after_round_${r.id}`,
@@ -200,20 +200,20 @@ export default function DigitalFlow() {
   });
 
   // ---- Save order to backend ----
-const saveOrder = async (participantsList) => {
-  if (!setup?.id) return;
-  const roomsMap = {};
-  participantsList.forEach(p => {
-    const roomId = p.octonormId;
-    if (!roomsMap[roomId]) roomsMap[roomId] = [];
-    roomsMap[roomId].push(p.dbId);
-  });
-  try {
-    await updateParticipantOrder(setup.id, roomsMap);
-  } catch (err) {
-    console.error('Failed to save order:', err);
-  }
-};
+  const saveOrder = async (participantsList) => {
+    if (!setup?.id) return;
+    const roomsMap = {};
+    participantsList.forEach(p => {
+      const roomId = p.octonormId;
+      if (!roomsMap[roomId]) roomsMap[roomId] = [];
+      roomsMap[roomId].push(p.dbId);
+    });
+    try {
+      await updateParticipantOrder(setup.id, roomsMap);
+    } catch (err) {
+      console.error('Failed to save order:', err);
+    }
+  };
 
   // ---- Handlers ----
   const handleChangeTrainerForParticipant = (participant) => {
@@ -362,43 +362,37 @@ const saveOrder = async (participantsList) => {
 
   const handleCardDragOver = (e) => e.preventDefault();
 
-  // ***** SWAP on card drop *****
-const handleCardDrop = (e, targetParticipant) => {
-  e.preventDefault();
-  e.stopPropagation();
-  dragOccurredRef.current = true;
-  const sourceId = draggedId;
-  setDragOverRoomId(null);
-  setDraggedId(null);
-  if (!sourceId || sourceId === targetParticipant.id) return;
+  const handleCardDrop = (e, targetParticipant) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragOccurredRef.current = true;
+    const sourceId = draggedId;
+    setDragOverRoomId(null);
+    setDraggedId(null);
+    if (!sourceId || sourceId === targetParticipant.id) return;
 
-  setParticipants(prev => {
-    const arr = [...prev];
-    const fromIndex = arr.findIndex(p => p.id === sourceId);
-    const toIndex = arr.findIndex(p => p.id === targetParticipant.id);
-    if (fromIndex === -1 || toIndex === -1) return prev;
+    setParticipants(prev => {
+      const arr = [...prev];
+      const fromIndex = arr.findIndex(p => p.id === sourceId);
+      const toIndex = arr.findIndex(p => p.id === targetParticipant.id);
+      if (fromIndex === -1 || toIndex === -1) return prev;
 
-    const sourceRoom = arr[fromIndex].octonormId;
-    const targetRoom = arr[toIndex].octonormId;
+      const sourceRoom = arr[fromIndex].octonormId;
+      const targetRoom = arr[toIndex].octonormId;
 
-    if (sourceRoom === targetRoom) {
-      // Same room: swap the two participants
-      [arr[fromIndex], arr[toIndex]] = [arr[toIndex], arr[fromIndex]];
-    } else {
-      // Different room: insert (move) the dragged participant to the target room/position
-      const [dragged] = arr.splice(fromIndex, 1);
-      dragged.octonormId = targetRoom;
-      const insertIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
-      arr.splice(insertIndex, 0, dragged);
-    }
+      if (sourceRoom === targetRoom) {
+        [arr[fromIndex], arr[toIndex]] = [arr[toIndex], arr[fromIndex]];
+      } else {
+        const [dragged] = arr.splice(fromIndex, 1);
+        dragged.octonormId = targetRoom;
+        const insertIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+        arr.splice(insertIndex, 0, dragged);
+      }
+      saveOrder(arr);
+      return arr;
+    });
+  };
 
-    // Persist the new order to the backend
-    saveOrder(arr);
-    return arr;
-  });
-};
-
-  // ***** INSERT on cell drop (empty cell) *****
   const handleCellDrop = (e, roomId, rowIndex) => {
     e.preventDefault();
     e.stopPropagation();
@@ -414,29 +408,17 @@ const handleCardDrop = (e, targetParticipant) => {
       if (fromIndex === -1) return prev;
       const [item] = arr.splice(fromIndex, 1);
 
-      // Find the target index in the target room
       const roomParticipants = arr.filter(p => p.octonormId === roomId);
-      const insertIdx = Math.min(rowIndex, roomParticipants.length);
-      // Actually we need to find the index in the full array where to insert.
-      // We'll find the position of the first participant in the room, then add rowIndex.
       let globalInsertIndex = arr.findIndex(p => p.octonormId === roomId);
       if (globalInsertIndex === -1) {
-        // If no participant in that room, append at end
         globalInsertIndex = arr.length;
       } else {
-        // Count participants before the room
-        let count = 0;
         let idx = 0;
-        while (idx < arr.length && arr[idx].octonormId !== roomId) {
-          idx++;
-        }
+        while (idx < arr.length && arr[idx].octonormId !== roomId) idx++;
         globalInsertIndex = idx + Math.min(rowIndex, roomParticipants.length);
       }
-      // Insert the item at that position
       const updatedItem = { ...item, octonormId: roomId };
       arr.splice(globalInsertIndex, 0, updatedItem);
-
-      // Save the new order
       saveOrder(arr);
       return arr;
     });
@@ -468,17 +450,23 @@ const handleCardDrop = (e, targetParticipant) => {
   };
 
   const roomsData = getParticipantsByRoom();
+
+  // ---- Dynamic Time Labels from database ----
   const maxRows = Math.max(0, ...Object.values(roomsData).map(arr => arr.length));
-  const timeLabels = [];
-  let currentTime = new Date();
-  currentTime.setHours(9, 0, 0, 0);
-  for (let i = 0; i < maxRows; i++) {
-    const hours = currentTime.getHours();
-    const minutes = currentTime.getMinutes();
-    const ampm = hours >= 12 ? "PM" : "AM";
-    const h12 = hours % 12 || 12;
-    timeLabels.push(`${String(h12).padStart(2, "0")}:${String(minutes).padStart(2, "0")} ${ampm}`);
-    currentTime.setMinutes(currentTime.getMinutes() + 30);
+  let timeLabels = timeSlots.slice(0, maxRows).map(slot => slot.time);
+
+  // Fallback to static times if not enough slots
+  if (timeLabels.length < maxRows) {
+    const baseTime = new Date();
+    baseTime.setHours(9, 0, 0, 0);
+    for (let i = timeLabels.length; i < maxRows; i++) {
+      const next = new Date(baseTime.getTime() + i * 30 * 60000);
+      const hours = next.getHours();
+      const minutes = next.getMinutes();
+      const ampm = hours >= 12 ? "PM" : "AM";
+      const h12 = hours % 12 || 12;
+      timeLabels.push(`${String(h12).padStart(2, "0")}:${String(minutes).padStart(2, "0")} ${ampm}`);
+    }
   }
 
   const TrainerLegend = () => {
