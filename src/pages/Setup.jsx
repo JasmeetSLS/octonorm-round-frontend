@@ -1,4 +1,4 @@
-// DigitalFlow.jsx – fully dynamic with hold-after-round steps, drag persistence, swap on card drop, and dynamic time slots
+// DigitalFlow.jsx – simplified: no trainerUpdates sent to backend
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import {
@@ -6,7 +6,7 @@ import {
   Users, X, UserCog, Monitor, CheckSquare, Square, MousePointerClick, Bike,
   LogOut,
 } from "lucide-react";
-import { getSetup, updateParticipantOrder } from "../../services/api";
+import { getSetup, updateParticipantOrder } from "../../services/api";  // adjust path
 import { useNavigate } from "react-router-dom";
 
 // ---- Color palette (10 distinct colors) ----
@@ -42,7 +42,7 @@ export default function DigitalFlow() {
   const [trainers, setTrainers] = useState([]);
   const [setup, setSetup] = useState(null);
   const [rounds, setRounds] = useState([]);
-  const [timeSlots, setTimeSlots] = useState([]);   // <-- new state
+  const [timeSlots, setTimeSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -73,7 +73,12 @@ export default function DigitalFlow() {
           setTrainers(trainers);
           setRounds(rounds);
           setTimeSlots(dbTimeSlots || []);
-          setRooms(rooms.map(r => ({ id: r.id, name: r.name, bikeName: r.vehicle_name || null })));
+          setRooms(rooms.map(r => ({
+            id: r.id,
+            name: r.name,
+            bikeName: r.vehicle_name || null,
+            trainerId: r.trainer_id || null
+          })));
           setParticipants(dbParticipants.map(p => ({
             id: String(p.id),
             name: p.name,
@@ -136,7 +141,7 @@ export default function DigitalFlow() {
     time_per_bike_round: 10,
   };
 
-  // ---- Build dynamic step sequence (including hold-after-round) ----
+  // ---- Build dynamic step sequence ----
   const getEnabledSteps = () => {
     const steps = [];
     steps.push({ key: "main", label: "MAIN" });
@@ -169,14 +174,13 @@ export default function DigitalFlow() {
   const enabledSteps = getEnabledSteps();
   const stepKeys = enabledSteps.map(s => s.key);
 
-  // ---- Get next stage ----
   const getNextStage = (currentKey) => {
     const idx = stepKeys.indexOf(currentKey);
     if (idx === -1 || idx === stepKeys.length - 1) return null;
     return stepKeys[idx + 1];
   };
 
-  // ---- Stats with colors from palette by sequence ----
+  // ---- Stats ----
   const stats = enabledSteps.map((step, idx) => {
     const iconMap = { main: Gamepad2, holding: Hourglass, prep: Settings, completed: Flag };
     let Icon = iconMap[step.key];
@@ -199,7 +203,7 @@ export default function DigitalFlow() {
     };
   });
 
-  // ---- Save order to backend ----
+  // ---- Save order to backend (ONLY room mapping) ----
   const saveOrder = async (participantsList) => {
     if (!setup?.id) return;
     const roomsMap = {};
@@ -221,15 +225,66 @@ export default function DigitalFlow() {
     setShowChangeTrainer(true);
   };
 
-  const handleSelectTrainer = (trainerIndex) => {
+  // ✅ UPDATED: move participant to trainer's room, last position
+  const handleSelectTrainer = async (trainerIndex) => {
     if (!selectedTrainerForParticipant) return;
+
     const trainerName = trainerNames[trainerIndex];
     const trainerId = trainers.find(t => t.name === trainerName)?.id;
-    setParticipants(prev =>
-      prev.map(p =>
-        p.id === selectedTrainerForParticipant.id ? { ...p, trainer: trainerName, trainerId } : p
-      )
-    );
+    if (!trainerId) return;
+
+    // Find the room that has this trainer as default
+    const targetRoom = rooms.find(r => r.trainerId === trainerId);
+    const targetRoomId = targetRoom?.id;
+
+    setParticipants(prev => {
+      const arr = [...prev];
+      const participantIndex = arr.findIndex(p => p.id === selectedTrainerForParticipant.id);
+      if (participantIndex === -1) return prev;
+
+      const participant = arr[participantIndex];
+      const currentRoomId = participant.octonormId;
+
+      // If already in the target room, just update trainer and keep position
+      if (targetRoomId && targetRoomId === currentRoomId) {
+        arr[participantIndex] = { ...participant, trainer: trainerName, trainerId };
+        saveOrder(arr);
+        return arr;
+      }
+
+      // Remove participant from current position
+      const [removed] = arr.splice(participantIndex, 1);
+
+      // If no target room found, keep current room
+      const newRoomId = targetRoomId || currentRoomId;
+      const updatedParticipant = {
+        ...removed,
+        octonormId: newRoomId,
+        trainer: trainerName,
+        trainerId,
+      };
+
+      // Insert at the end of the target room's list
+      let insertIndex = arr.length;
+      for (let i = arr.length - 1; i >= 0; i--) {
+        if (arr[i].octonormId === newRoomId) {
+          insertIndex = i + 1;
+          break;
+        }
+      }
+      // If no participants in target room, insert at the first occurrence of that room
+      if (insertIndex === arr.length) {
+        const firstIndex = arr.findIndex(p => p.octonormId === newRoomId);
+        if (firstIndex !== -1) {
+          insertIndex = firstIndex;
+        }
+      }
+      arr.splice(insertIndex, 0, updatedParticipant);
+
+      saveOrder(arr);
+      return arr;
+    });
+
     setShowChangeTrainer(false);
     setSelectedTrainerForParticipant(null);
   };
@@ -362,6 +417,7 @@ export default function DigitalFlow() {
 
   const handleCardDragOver = (e) => e.preventDefault();
 
+  // -------- CARD-TO-CARD DROP (swap or move) --------
   const handleCardDrop = (e, targetParticipant) => {
     e.preventDefault();
     e.stopPropagation();
@@ -379,20 +435,31 @@ export default function DigitalFlow() {
 
       const sourceRoom = arr[fromIndex].octonormId;
       const targetRoom = arr[toIndex].octonormId;
+      const dragged = arr[fromIndex];
 
       if (sourceRoom === targetRoom) {
         [arr[fromIndex], arr[toIndex]] = [arr[toIndex], arr[fromIndex]];
       } else {
-        const [dragged] = arr.splice(fromIndex, 1);
-        dragged.octonormId = targetRoom;
+        const targetRoomData = rooms.find(r => r.id === targetRoom);
+        const newTrainerId = targetRoomData?.trainerId || null;
+        const newTrainerName = newTrainerId ? trainers.find(t => t.id === newTrainerId)?.name : '';
+        const updatedDragged = {
+          ...dragged,
+          octonormId: targetRoom,
+          trainerId: newTrainerId,
+          trainer: newTrainerName || '',
+        };
+        arr.splice(fromIndex, 1);
         const insertIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
-        arr.splice(insertIndex, 0, dragged);
+        arr.splice(insertIndex, 0, updatedDragged);
       }
+
       saveOrder(arr);
       return arr;
     });
   };
 
+  // -------- CELL DROP (drop into empty cell) --------
   const handleCellDrop = (e, roomId, rowIndex) => {
     e.preventDefault();
     e.stopPropagation();
@@ -408,6 +475,14 @@ export default function DigitalFlow() {
       if (fromIndex === -1) return prev;
       const [item] = arr.splice(fromIndex, 1);
 
+      let updatedItem = { ...item, octonormId: roomId };
+
+      const targetRoomData = rooms.find(r => r.id === roomId);
+      const newTrainerId = targetRoomData?.trainerId || null;
+      const newTrainerName = newTrainerId ? trainers.find(t => t.id === newTrainerId)?.name : '';
+      updatedItem.trainerId = newTrainerId;
+      updatedItem.trainer = newTrainerName || '';
+
       const roomParticipants = arr.filter(p => p.octonormId === roomId);
       let globalInsertIndex = arr.findIndex(p => p.octonormId === roomId);
       if (globalInsertIndex === -1) {
@@ -417,13 +492,14 @@ export default function DigitalFlow() {
         while (idx < arr.length && arr[idx].octonormId !== roomId) idx++;
         globalInsertIndex = idx + Math.min(rowIndex, roomParticipants.length);
       }
-      const updatedItem = { ...item, octonormId: roomId };
       arr.splice(globalInsertIndex, 0, updatedItem);
+
       saveOrder(arr);
       return arr;
     });
   };
 
+  // ---- Logout ----
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -431,7 +507,6 @@ export default function DigitalFlow() {
     navigate("/login");
   };
 
-  // ---- Get current and next labels ----
   const getStepLabels = (currentKey) => {
     const idx = stepKeys.indexOf(currentKey);
     if (idx === -1) return { current: "", next: "" };
@@ -442,7 +517,6 @@ export default function DigitalFlow() {
   };
 
   // ---- UI Rendering ----
-  // Group participants by room
   const getParticipantsByRoom = () => {
     const map = {};
     rooms.forEach(room => { map[room.id] = participants.filter(p => p.octonormId === room.id); });
@@ -450,12 +524,9 @@ export default function DigitalFlow() {
   };
 
   const roomsData = getParticipantsByRoom();
-
-  // ---- Dynamic Time Labels from database ----
   const maxRows = Math.max(0, ...Object.values(roomsData).map(arr => arr.length));
-  let timeLabels = timeSlots.slice(0, maxRows).map(slot => slot.time);
 
-  // Fallback to static times if not enough slots
+  let timeLabels = timeSlots.slice(0, maxRows).map(slot => slot.time);
   if (timeLabels.length < maxRows) {
     const baseTime = new Date();
     baseTime.setHours(9, 0, 0, 0);
