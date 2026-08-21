@@ -94,6 +94,7 @@ export default function DigitalFlow() {
             octonormId: p.room_id,
             stage: p.stage || "main",
             dbId: p.id,
+            timeSlotTime: p.time_slot_time || null,
           })));
         } else setError("Failed to load data");
       } catch (err) { setError(err.message); } finally { setLoading(false); }
@@ -109,6 +110,45 @@ export default function DigitalFlow() {
     }, 1000);
     return () => clearInterval(interval);
   }, [loading]);
+
+  // ===================== NEW: Recompute time slots after order changes =====================
+  const computeTimeSlots = (participantsList) => {
+    // Build a map of room -> participants (preserving order)
+    const roomMap = {};
+    participantsList.forEach(p => {
+      if (!roomMap[p.octonormId]) roomMap[p.octonormId] = [];
+      roomMap[p.octonormId].push(p);
+    });
+
+    // Determine the maximum number of participants in any room
+    const maxRows = Math.max(0, ...Object.values(roomMap).map(arr => arr.length));
+
+    // Generate time labels exactly as in the render
+    let timeLabels = timeSlots.slice(0, maxRows).map(slot => slot.time);
+    if (timeLabels.length < maxRows) {
+      const baseTime = new Date();
+      baseTime.setHours(9, 0, 0, 0);
+      for (let i = timeLabels.length; i < maxRows; i++) {
+        const next = new Date(baseTime.getTime() + i * 30 * 60000);
+        const hours = next.getHours();
+        const minutes = next.getMinutes();
+        const ampm = hours >= 12 ? "PM" : "AM";
+        const h12 = hours % 12 || 12;
+        timeLabels.push(`${String(h12).padStart(2, "0")}:${String(minutes).padStart(2, "0")} ${ampm}`);
+      }
+    }
+
+    // Assign timeSlotTime based on the participant's index within its room
+    return participantsList.map(p => {
+      const roomParticipants = roomMap[p.octonormId] || [];
+      const index = roomParticipants.findIndex(pp => pp.id === p.id);
+      return {
+        ...p,
+        timeSlotTime: (index !== -1 && index < timeLabels.length) ? timeLabels[index] : null,
+      };
+    });
+  };
+  // =======================================================================================
 
   // ---- Helpers ----
   const formatTime = (seconds) => {
@@ -225,7 +265,7 @@ export default function DigitalFlow() {
     setShowChangeTrainer(true);
   };
 
-  // ✅ UPDATED: move participant to trainer's room, last position
+  // UPDATED: move participant to trainer's room, last position, and recompute time slots
   const handleSelectTrainer = async (trainerIndex) => {
     if (!selectedTrainerForParticipant) return;
 
@@ -248,8 +288,10 @@ export default function DigitalFlow() {
       // If already in the target room, just update trainer and keep position
       if (targetRoomId && targetRoomId === currentRoomId) {
         arr[participantIndex] = { ...participant, trainer: trainerName, trainerId };
-        saveOrder(arr);
-        return arr;
+        // order unchanged, but we still recompute time slots to be safe (they won't change)
+        const updated = computeTimeSlots(arr);
+        saveOrder(updated);
+        return updated;
       }
 
       // Remove participant from current position
@@ -281,8 +323,10 @@ export default function DigitalFlow() {
       }
       arr.splice(insertIndex, 0, updatedParticipant);
 
-      saveOrder(arr);
-      return arr;
+      // Recompute time slots after reorder
+      const updated = computeTimeSlots(arr);
+      saveOrder(updated);
+      return updated;
     });
 
     setShowChangeTrainer(false);
@@ -326,6 +370,7 @@ export default function DigitalFlow() {
       const newList = prev.map(p =>
         p.id === selectedParticipant.id ? { ...p, ...updates } : p
       );
+      // order unchanged, no need to recompute time slots
       saveOrder(newList);
       return newList;
     });
@@ -374,6 +419,7 @@ export default function DigitalFlow() {
         }
         return { ...p, ...updates };
       });
+      // order unchanged, no recompute needed
       saveOrder(newList);
       return newList;
     });
@@ -387,8 +433,10 @@ export default function DigitalFlow() {
       const newList = prev.map(p =>
         selectedIds.has(p.id) ? { ...p, trainer: trainerName, trainerId } : p
       );
-      saveOrder(newList);
-      return newList;
+      // order unchanged, but we can still recompute to be safe (won't hurt)
+      const updated = computeTimeSlots(newList);
+      saveOrder(updated);
+      return updated;
     });
     setShowBulkTrainer(false);
     clearSelection();
@@ -417,7 +465,7 @@ export default function DigitalFlow() {
 
   const handleCardDragOver = (e) => e.preventDefault();
 
-  // -------- CARD-TO-CARD DROP (swap or move) --------
+  // CARD-TO-CARD DROP (swap or move) – recompute time slots
   const handleCardDrop = (e, targetParticipant) => {
     e.preventDefault();
     e.stopPropagation();
@@ -454,12 +502,14 @@ export default function DigitalFlow() {
         arr.splice(insertIndex, 0, updatedDragged);
       }
 
-      saveOrder(arr);
-      return arr;
+      // Recompute time slots after reorder
+      const updated = computeTimeSlots(arr);
+      saveOrder(updated);
+      return updated;
     });
   };
 
-  // -------- CELL DROP (drop into empty cell) --------
+  // CELL DROP (drop into empty cell) – recompute time slots
   const handleCellDrop = (e, roomId, rowIndex) => {
     e.preventDefault();
     e.stopPropagation();
@@ -494,8 +544,10 @@ export default function DigitalFlow() {
       }
       arr.splice(globalInsertIndex, 0, updatedItem);
 
-      saveOrder(arr);
-      return arr;
+      // Recompute time slots after insertion
+      const updated = computeTimeSlots(arr);
+      saveOrder(updated);
+      return updated;
     });
   };
 
@@ -766,7 +818,6 @@ export default function DigitalFlow() {
                   })}
                 </div>
               </div>
-
               <div className="mb-4 rounded-xl border border-gray-100 bg-gray-50 p-3">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-400">Current</span>
@@ -784,6 +835,11 @@ export default function DigitalFlow() {
                 <div className="mt-1.5 flex items-center justify-between border-t border-gray-100 pt-1.5 text-xs">
                   <span className="text-gray-400">Octonorm</span>
                   <span className="font-medium text-gray-700">{rooms.find(r => r.id === selectedParticipant.octonormId)?.name || '—'}</span>
+                </div>
+                {/* ↓ Time Slot – now updates automatically */}
+                <div className="mt-1.5 flex items-center justify-between border-t border-gray-100 pt-1.5 text-xs">
+                  <span className="text-gray-400">Time Slot</span>
+                  <span className="font-medium text-gray-700">{selectedParticipant.timeSlotTime || '—'}</span>
                 </div>
                 <div className="mt-1.5 flex items-center justify-between border-t border-gray-100 pt-1.5 text-xs">
                   <span className="text-gray-400">Trainer</span>
