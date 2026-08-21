@@ -1,4 +1,4 @@
-// src/api/api.js
+// src/api/api.js (updated)
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:5000/api';
@@ -44,9 +44,16 @@ export const getSetup = () => {
   return api.get('/setup');
 };
 
-// ✅ Simplified: only sends setup_id and rooms mapping
 export const updateParticipantOrder = (setupId, rooms) => {
   return api.put('/participants/order', { setup_id: setupId, rooms });
+};
+
+// NEW: Advance a participant to the next stage
+export const advanceParticipant = (participantId, newStage) => {
+  return api.post('/participants/advance', {
+    participant_id: participantId,
+    new_stage: newStage,
+  });
 };
 
 export default api;

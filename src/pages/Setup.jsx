@@ -1,4 +1,4 @@
-// DigitalFlow.jsx – simplified: no trainerUpdates sent to backend
+// DigitalFlow.jsx – with global stats and per‑participant step lists
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import {
@@ -6,21 +6,21 @@ import {
   Users, X, UserCog, Monitor, CheckSquare, Square, MousePointerClick, Bike,
   LogOut,
 } from "lucide-react";
-import { getSetup, updateParticipantOrder } from "../../services/api";  // adjust path
+import { getSetup, updateParticipantOrder, advanceParticipant } from "../../services/api";
 import { useNavigate } from "react-router-dom";
 
-// ---- Color palette (10 distinct colors) ----
+// ---- Color palette (10 distinct colours) ----
 const colorPalette = [
-  { from: "#8B5CF6", to: "#7C3AED" },  // purple
-  { from: "#F43F5E", to: "#E11D48" },  // rose
-  { from: "#0EA5E9", to: "#0284C7" },  // sky
-  { from: "#F97316", to: "#EA580C" },  // orange
-  { from: "#34D399", to: "#10B981" },  // emerald
-  { from: "#FBBF24", to: "#F59E0B" },  // amber
-  { from: "#EC4899", to: "#DB2777" },  // pink
-  { from: "#14B8A6", to: "#0D9488" },  // teal
-  { from: "#6366F1", to: "#4F46E5" },  // indigo
-  { from: "#6B7280", to: "#4B5563" },  // gray
+  { from: "#8B5CF6", to: "#7C3AED" },
+  { from: "#F43F5E", to: "#E11D48" },
+  { from: "#0EA5E9", to: "#0284C7" },
+  { from: "#F97316", to: "#EA580C" },
+  { from: "#34D399", to: "#10B981" },
+  { from: "#FBBF24", to: "#F59E0B" },
+  { from: "#EC4899", to: "#DB2777" },
+  { from: "#14B8A6", to: "#0D9488" },
+  { from: "#6366F1", to: "#4F46E5" },
+  { from: "#6B7280", to: "#4B5563" },
 ];
 
 const borderColors = [
@@ -49,7 +49,6 @@ export default function DigitalFlow() {
   // UI state
   const [selectedParticipant, setSelectedParticipant] = useState(null);
   const [showPopup, setShowPopup] = useState(false);
-  const [popupAction, setPopupAction] = useState("");
   const [showChangeTrainer, setShowChangeTrainer] = useState(false);
   const [selectedTrainerForParticipant, setSelectedTrainerForParticipant] = useState(null);
   const [draggedId, setDraggedId] = useState(null);
@@ -92,9 +91,10 @@ export default function DigitalFlow() {
             trainer: p.trainer_name || "",
             trainerId: p.trainer_id,
             octonormId: p.room_id,
-            stage: p.stage || "main",
+            stage: p.current_stage || "main",
             dbId: p.id,
             timeSlotTime: p.time_slot_time || null,
+            assignedRoundIds: p.assigned_rounds || [],
           })));
         } else setError("Failed to load data");
       } catch (err) { setError(err.message); } finally { setLoading(false); }
@@ -111,19 +111,14 @@ export default function DigitalFlow() {
     return () => clearInterval(interval);
   }, [loading]);
 
-  // ===================== NEW: Recompute time slots after order changes =====================
+  // ---- Recompute time slots after order changes ----
   const computeTimeSlots = (participantsList) => {
-    // Build a map of room -> participants (preserving order)
     const roomMap = {};
     participantsList.forEach(p => {
       if (!roomMap[p.octonormId]) roomMap[p.octonormId] = [];
       roomMap[p.octonormId].push(p);
     });
-
-    // Determine the maximum number of participants in any room
     const maxRows = Math.max(0, ...Object.values(roomMap).map(arr => arr.length));
-
-    // Generate time labels exactly as in the render
     let timeLabels = timeSlots.slice(0, maxRows).map(slot => slot.time);
     if (timeLabels.length < maxRows) {
       const baseTime = new Date();
@@ -137,8 +132,6 @@ export default function DigitalFlow() {
         timeLabels.push(`${String(h12).padStart(2, "0")}:${String(minutes).padStart(2, "0")} ${ampm}`);
       }
     }
-
-    // Assign timeSlotTime based on the participant's index within its room
     return participantsList.map(p => {
       const roomParticipants = roomMap[p.octonormId] || [];
       const index = roomParticipants.findIndex(pp => pp.id === p.id);
@@ -148,7 +141,6 @@ export default function DigitalFlow() {
       };
     });
   };
-  // =======================================================================================
 
   // ---- Helpers ----
   const formatTime = (seconds) => {
@@ -157,9 +149,8 @@ export default function DigitalFlow() {
     const secs = seconds % 60;
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
-  const getStageCount = (stageKey) => participants.filter(p => p.stage === stageKey).length;
 
-  // ---- Trainer colors ----
+  // ---- Trainer colours ----
   const trainerColors = {};
   trainers.forEach((t) => {
     const colors = [
@@ -181,69 +172,82 @@ export default function DigitalFlow() {
     time_per_bike_round: 10,
   };
 
-  // ---- Build dynamic step sequence ----
-  const getEnabledSteps = () => {
+  // ---- Global steps (for stats & legend) ----
+  const getGlobalSteps = () => {
     const steps = [];
-    steps.push({ key: "main", label: "MAIN" });
-    if (setup?.hold_area_pre) steps.push({ key: "holding", label: "HOLD (PRE)" });
-    if (setup?.preparation_enabled) steps.push({ key: "prep", label: "PREP" });
-
-    rounds.forEach((r) => {
-      steps.push({
-        key: `round_${r.id}`,
-        label: r.name,
-        isRound: true,
-        holdArea: r.hold_area === 1,
-        time: r.time_minutes,
-        roundId: r.id,
-      });
+    steps.push({ key: 'main', label: 'MAIN' });
+    if (setup?.hold_area_pre) steps.push({ key: 'holding', label: 'HOLD (PRE)' });
+    if (setup?.preparation_enabled) steps.push({ key: 'prep', label: 'PREP' });
+    rounds.forEach(r => {
+      steps.push({ key: `round_${r.id}`, label: r.name, isRound: true, roundId: r.id });
       if (r.hold_area === 1) {
-        steps.push({
-          key: `hold_after_round_${r.id}`,
-          label: `Hold (after ${r.name})`,
-          isHoldAfterRound: true,
-          roundId: r.id,
-        });
+        steps.push({ key: `hold_after_round_${r.id}`, label: `Hold (after ${r.name})`, isHoldAfterRound: true });
       }
     });
-
-    if (setup?.hold_area_post) steps.push({ key: "completed", label: "HOLD (POST)" });
+    if (setup?.hold_area_post) steps.push({ key: 'completed', label: 'HOLD (POST)' });
     return steps;
   };
 
-  const enabledSteps = getEnabledSteps();
-  const stepKeys = enabledSteps.map(s => s.key);
-
-  const getNextStage = (currentKey) => {
-    const idx = stepKeys.indexOf(currentKey);
-    if (idx === -1 || idx === stepKeys.length - 1) return null;
-    return stepKeys[idx + 1];
-  };
+  const globalSteps = getGlobalSteps();
 
   // ---- Stats ----
-  const stats = enabledSteps.map((step, idx) => {
-    const iconMap = { main: Gamepad2, holding: Hourglass, prep: Settings, completed: Flag };
-    let Icon = iconMap[step.key];
-    if (step.isRound) {
-      const roundIndex = rounds.findIndex(r => r.id === step.roundId);
+  const stats = globalSteps.map((step, idx) => {
+    const count = participants.filter(p => p.stage === step.key).length;
+    let Icon = Gamepad2;
+    if (step.key === 'main') Icon = Gamepad2;
+    else if (step.key === 'holding' || step.key.startsWith('hold_')) Icon = Hourglass;
+    else if (step.key === 'prep') Icon = Settings;
+    else if (step.key === 'completed') Icon = Flag;
+    else if (step.key.startsWith('round_')) {
+      const roundId = parseInt(step.key.split('_')[1]);
+      const roundIndex = rounds.findIndex(r => r.id === roundId);
       Icon = roundIndex === 0 ? ClipboardList : Monitor;
     }
-    if (step.isHoldAfterRound) {
-      Icon = Hourglass;
-    }
-    if (!Icon) Icon = Gamepad2;
     const colors = colorPalette[idx % colorPalette.length];
     return {
       key: step.key,
       label: step.label,
-      value: getStageCount(step.key),
+      value: count,
       icon: Icon,
       from: colors.from,
       to: colors.to,
     };
   });
 
-  // ---- Save order to backend (ONLY room mapping) ----
+  // ---- Per‑participant step builder (for popups, card borders, moves) ----
+  const getParticipantSteps = (participant) => {
+    const steps = [];
+    steps.push({ key: 'main', label: 'MAIN', isRound: false });
+    if (setup?.hold_area_pre) steps.push({ key: 'holding(pre)', label: 'HOLD (PRE)', isRound: false });
+    if (setup?.preparation_enabled) steps.push({ key: 'preparation', label: 'PREP', isRound: false });
+
+    rounds.forEach(r => {
+      if (participant.assignedRoundIds.includes(r.id)) {
+        const stepKey = `round_${r.id}`;
+        steps.push({
+          key: stepKey,
+          label: r.name,
+          isRound: true,
+          roundId: r.id,
+          time: r.time_minutes,
+          holdArea: r.hold_area === 1
+        });
+        if (r.hold_area === 1) {
+          steps.push({
+            key: `hold_after_round_${r.id}`,
+            label: `Hold (after ${r.name})`,
+            isHoldAfterRound: true,
+            roundId: r.id
+          });
+        }
+      }
+    });
+
+    if (setup?.hold_area_post) steps.push({ key: 'holding(post)', label: 'HOLD (POST)', isRound: false });
+    return steps;
+  };
+
+  // ---- Save order ----
   const saveOrder = async (participantsList) => {
     if (!setup?.id) return;
     const roomsMap = {};
@@ -265,39 +269,26 @@ export default function DigitalFlow() {
     setShowChangeTrainer(true);
   };
 
-  // UPDATED: move participant to trainer's room, last position, and recompute time slots
   const handleSelectTrainer = async (trainerIndex) => {
     if (!selectedTrainerForParticipant) return;
-
     const trainerName = trainerNames[trainerIndex];
     const trainerId = trainers.find(t => t.name === trainerName)?.id;
     if (!trainerId) return;
-
-    // Find the room that has this trainer as default
     const targetRoom = rooms.find(r => r.trainerId === trainerId);
     const targetRoomId = targetRoom?.id;
-
     setParticipants(prev => {
       const arr = [...prev];
       const participantIndex = arr.findIndex(p => p.id === selectedTrainerForParticipant.id);
       if (participantIndex === -1) return prev;
-
       const participant = arr[participantIndex];
       const currentRoomId = participant.octonormId;
-
-      // If already in the target room, just update trainer and keep position
       if (targetRoomId && targetRoomId === currentRoomId) {
         arr[participantIndex] = { ...participant, trainer: trainerName, trainerId };
-        // order unchanged, but we still recompute time slots to be safe (they won't change)
         const updated = computeTimeSlots(arr);
         saveOrder(updated);
         return updated;
       }
-
-      // Remove participant from current position
       const [removed] = arr.splice(participantIndex, 1);
-
-      // If no target room found, keep current room
       const newRoomId = targetRoomId || currentRoomId;
       const updatedParticipant = {
         ...removed,
@@ -305,8 +296,6 @@ export default function DigitalFlow() {
         trainer: trainerName,
         trainerId,
       };
-
-      // Insert at the end of the target room's list
       let insertIndex = arr.length;
       for (let i = arr.length - 1; i >= 0; i--) {
         if (arr[i].octonormId === newRoomId) {
@@ -314,21 +303,15 @@ export default function DigitalFlow() {
           break;
         }
       }
-      // If no participants in target room, insert at the first occurrence of that room
       if (insertIndex === arr.length) {
         const firstIndex = arr.findIndex(p => p.octonormId === newRoomId);
-        if (firstIndex !== -1) {
-          insertIndex = firstIndex;
-        }
+        if (firstIndex !== -1) insertIndex = firstIndex;
       }
       arr.splice(insertIndex, 0, updatedParticipant);
-
-      // Recompute time slots after reorder
       const updated = computeTimeSlots(arr);
       saveOrder(updated);
       return updated;
     });
-
     setShowChangeTrainer(false);
     setSelectedTrainerForParticipant(null);
   };
@@ -341,43 +324,52 @@ export default function DigitalFlow() {
   const closePopup = () => {
     setShowPopup(false);
     setSelectedParticipant(null);
-    setPopupAction("");
   };
 
   // ---- Move participant (single) ----
-  const handleMove = () => {
+  const handleMove = async () => {
     if (!selectedParticipant) return;
-    const targetKey = getNextStage(selectedParticipant.stage);
-    if (!targetKey) { closePopup(); return; }
 
-    setParticipants(prev => {
-      const updates = { stage: targetKey };
-      if (targetKey === "prep") {
-        const boothNumber = (prev.filter(p => p.stage === "prep").length % setupData.preparation_booths) + 1;
-        updates.booth = boothNumber;
-        updates.timer = setupData.preparation_time_per_case * 60;
-      } else {
-        updates.booth = null;
-        updates.evaluator = null;
-      }
-      const targetStep = enabledSteps.find(s => s.key === targetKey);
-      if (targetStep?.isRound) {
-        const round = rounds.find(r => r.id === targetStep.roundId);
-        updates.timer = round ? round.time_minutes * 60 : 10 * 60;
-      } else if (targetStep?.isHoldAfterRound || targetKey === "completed") {
-        updates.timer = null;
-      }
-      const newList = prev.map(p =>
+    const steps = getParticipantSteps(selectedParticipant);
+    const currentIdx = steps.findIndex(s => s.key === selectedParticipant.stage);
+    if (currentIdx === -1 || currentIdx === steps.length - 1) {
+      closePopup();
+      return;
+    }
+    const nextStep = steps[currentIdx + 1];
+
+    let updates = { stage: nextStep.key };
+    if (nextStep.key === "prep") {
+      const prepCount = participants.filter(p => p.stage === "prep").length;
+      updates.booth = (prepCount % setupData.preparation_booths) + 1;
+      updates.timer = setupData.preparation_time_per_case * 60;
+    } else if (nextStep.isRound) {
+      const round = rounds.find(r => r.id === nextStep.roundId);
+      updates.timer = round ? round.time_minutes * 60 : 10 * 60;
+      updates.booth = null;
+      updates.evaluator = null;
+    } else if (nextStep.key === "completed" || nextStep.isHoldAfterRound) {
+      updates.timer = null;
+      updates.booth = null;
+      updates.evaluator = null;
+    } else {
+      updates.booth = null;
+      updates.evaluator = null;
+    }
+
+    try {
+      await advanceParticipant(selectedParticipant.dbId, nextStep.key);
+      setParticipants(prev => prev.map(p =>
         p.id === selectedParticipant.id ? { ...p, ...updates } : p
-      );
-      // order unchanged, no need to recompute time slots
-      saveOrder(newList);
-      return newList;
-    });
-    closePopup();
+      ));
+      closePopup();
+    } catch (err) {
+      console.error('Failed to advance participant:', err);
+      alert('Error advancing participant');
+    }
   };
 
-  // ---- Multi-select ----
+  // ---- Multi‑select ----
   const toggleSelectMode = () => {
     setSelectMode(m => !m);
     setSelectedIds(new Set());
@@ -393,36 +385,58 @@ export default function DigitalFlow() {
 
   const clearSelection = () => setSelectedIds(new Set());
 
-  const handleBulkAdvance = () => {
-    setParticipants(prev => {
-      let prepCounter = prev.filter(p => p.stage === "prep").length;
-      const newList = prev.map(p => {
-        if (!selectedIds.has(p.id)) return p;
-        const targetKey = getNextStage(p.stage);
-        if (!targetKey) return p;
-        const updates = { stage: targetKey };
-        if (targetKey === "prep") {
-          const boothNumber = (prepCounter % setupData.preparation_booths) + 1;
-          prepCounter++;
-          updates.booth = boothNumber;
-          updates.timer = setupData.preparation_time_per_case * 60;
-        } else {
-          updates.booth = null;
-          updates.evaluator = null;
+  const handleBulkAdvance = async () => {
+    const updates = [];
+    for (const id of selectedIds) {
+      const participant = participants.find(p => p.id === id);
+      if (!participant) continue;
+      const steps = getParticipantSteps(participant);
+      const currentIdx = steps.findIndex(s => s.key === participant.stage);
+      if (currentIdx === -1 || currentIdx === steps.length - 1) continue;
+      const nextStep = steps[currentIdx + 1];
+      updates.push({ participantId: participant.dbId, newStage: nextStep.key });
+    }
+
+    if (updates.length === 0) return;
+
+    try {
+      await Promise.all(updates.map(u => advanceParticipant(u.participantId, u.newStage)));
+
+      setParticipants(prev => prev.map(p => {
+        if (selectedIds.has(p.id)) {
+          const update = updates.find(u => u.participantId === p.dbId);
+          if (update) {
+            const steps = getParticipantSteps(p);
+            const idx = steps.findIndex(s => s.key === update.newStage);
+            if (idx === -1) return p;
+            const step = steps[idx];
+            let newP = { ...p, stage: update.newStage };
+            if (step.key === "prep") {
+              const prepCount = participants.filter(p2 => p2.stage === "prep").length;
+              newP.booth = (prepCount % setupData.preparation_booths) + 1;
+              newP.timer = setupData.preparation_time_per_case * 60;
+            } else if (step.isRound) {
+              const round = rounds.find(r => r.id === step.roundId);
+              newP.timer = round ? round.time_minutes * 60 : 10 * 60;
+              newP.booth = null;
+              newP.evaluator = null;
+            } else if (step.key === "completed" || step.isHoldAfterRound) {
+              newP.timer = null;
+              newP.booth = null;
+              newP.evaluator = null;
+            } else {
+              newP.booth = null;
+              newP.evaluator = null;
+            }
+            return newP;
+          }
         }
-        const targetStep = enabledSteps.find(s => s.key === targetKey);
-        if (targetStep?.isRound) {
-          const round = rounds.find(r => r.id === targetStep.roundId);
-          updates.timer = round ? round.time_minutes * 60 : 10 * 60;
-        } else if (targetStep?.isHoldAfterRound || targetKey === "completed") {
-          updates.timer = null;
-        }
-        return { ...p, ...updates };
-      });
-      // order unchanged, no recompute needed
-      saveOrder(newList);
-      return newList;
-    });
+        return p;
+      }));
+    } catch (err) {
+      console.error('Bulk advance failed:', err);
+      alert('Error advancing participants');
+    }
     clearSelection();
   };
 
@@ -433,7 +447,6 @@ export default function DigitalFlow() {
       const newList = prev.map(p =>
         selectedIds.has(p.id) ? { ...p, trainer: trainerName, trainerId } : p
       );
-      // order unchanged, but we can still recompute to be safe (won't hurt)
       const updated = computeTimeSlots(newList);
       saveOrder(updated);
       return updated;
@@ -442,14 +455,13 @@ export default function DigitalFlow() {
     clearSelection();
   };
 
-  // ---- Participant click ----
+  // ---- Drag & drop ----
   const handleParticipantClick = (p) => {
     if (selectMode) { toggleSelectParticipant(p.id); return; }
     if (dragOccurredRef.current) { dragOccurredRef.current = false; return; }
     openPopup(p);
   };
 
-  // ---- Drag & drop ----
   const handleDragStart = (e, participant) => {
     if (selectMode) { e.preventDefault(); return; }
     setDraggedId(participant.id);
@@ -465,7 +477,6 @@ export default function DigitalFlow() {
 
   const handleCardDragOver = (e) => e.preventDefault();
 
-  // CARD-TO-CARD DROP (swap or move) – recompute time slots
   const handleCardDrop = (e, targetParticipant) => {
     e.preventDefault();
     e.stopPropagation();
@@ -480,11 +491,9 @@ export default function DigitalFlow() {
       const fromIndex = arr.findIndex(p => p.id === sourceId);
       const toIndex = arr.findIndex(p => p.id === targetParticipant.id);
       if (fromIndex === -1 || toIndex === -1) return prev;
-
       const sourceRoom = arr[fromIndex].octonormId;
       const targetRoom = arr[toIndex].octonormId;
       const dragged = arr[fromIndex];
-
       if (sourceRoom === targetRoom) {
         [arr[fromIndex], arr[toIndex]] = [arr[toIndex], arr[fromIndex]];
       } else {
@@ -501,15 +510,12 @@ export default function DigitalFlow() {
         const insertIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
         arr.splice(insertIndex, 0, updatedDragged);
       }
-
-      // Recompute time slots after reorder
       const updated = computeTimeSlots(arr);
       saveOrder(updated);
       return updated;
     });
   };
 
-  // CELL DROP (drop into empty cell) – recompute time slots
   const handleCellDrop = (e, roomId, rowIndex) => {
     e.preventDefault();
     e.stopPropagation();
@@ -524,15 +530,12 @@ export default function DigitalFlow() {
       const fromIndex = arr.findIndex(p => p.id === sourceId);
       if (fromIndex === -1) return prev;
       const [item] = arr.splice(fromIndex, 1);
-
       let updatedItem = { ...item, octonormId: roomId };
-
       const targetRoomData = rooms.find(r => r.id === roomId);
       const newTrainerId = targetRoomData?.trainerId || null;
       const newTrainerName = newTrainerId ? trainers.find(t => t.id === newTrainerId)?.name : '';
       updatedItem.trainerId = newTrainerId;
       updatedItem.trainer = newTrainerName || '';
-
       const roomParticipants = arr.filter(p => p.octonormId === roomId);
       let globalInsertIndex = arr.findIndex(p => p.octonormId === roomId);
       if (globalInsertIndex === -1) {
@@ -543,8 +546,6 @@ export default function DigitalFlow() {
         globalInsertIndex = idx + Math.min(rowIndex, roomParticipants.length);
       }
       arr.splice(globalInsertIndex, 0, updatedItem);
-
-      // Recompute time slots after insertion
       const updated = computeTimeSlots(arr);
       saveOrder(updated);
       return updated;
@@ -557,15 +558,6 @@ export default function DigitalFlow() {
     localStorage.removeItem("user");
     delete axios.defaults.headers.common["Authorization"];
     navigate("/login");
-  };
-
-  const getStepLabels = (currentKey) => {
-    const idx = stepKeys.indexOf(currentKey);
-    if (idx === -1) return { current: "", next: "" };
-    return {
-      current: enabledSteps[idx]?.label || "",
-      next: idx < stepKeys.length - 1 ? enabledSteps[idx+1]?.label || "" : "",
-    };
   };
 
   // ---- UI Rendering ----
@@ -621,7 +613,8 @@ export default function DigitalFlow() {
           Logout
         </button>
       </div>
-      {/* Top stat strip */}
+
+      {/* Top stat strip – now uses global steps */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-3">
         <div className="relative col-span-2 sm:col-span-1 overflow-hidden rounded-2xl bg-gradient-to-br from-[#0B0E1F] to-[#171B34] p-4 text-white shadow-lg">
           <div className="absolute inset-0 opacity-[0.15]" style={{ backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.5) 1px, transparent 1.5px)", backgroundSize: "10px 10px" }} />
@@ -707,7 +700,8 @@ export default function DigitalFlow() {
                       onDrop={(e) => handleCardDrop(e, participant)}
                       onClick={() => handleParticipantClick(participant)}
                       className={`group relative flex ${selectMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"} flex-col items-center rounded-lg bg-white p-1 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md ${(() => {
-                        const idx = enabledSteps.findIndex(s => s.key === participant.stage);
+                        const steps = getParticipantSteps(participant);
+                        const idx = steps.findIndex(s => s.key === participant.stage);
                         const border = idx !== -1 ? borderColors[idx % borderColors.length] : "border-gray-400";
                         return `border-6 ${border}`;
                       })()} ${draggedId === participant.id ? "opacity-30" : ""} ${selectedIds.has(participant.id) ? "ring-4 ring-indigo-500 ring-offset-1" : ""}`}
@@ -741,11 +735,11 @@ export default function DigitalFlow() {
         <div className="flex items-center gap-2"><span className="text-[10px] font-semibold text-gray-400">TRAINERS:</span><TrainerLegend /></div>
       </div>
 
-      {/* Legend */}
+      {/* Legend – now uses global steps */}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 shadow-sm">
         <div className="flex flex-wrap items-center gap-3 text-[10px]">
           <span className="font-semibold text-gray-400">LEGEND:</span>
-          {enabledSteps.map((step, idx) => (
+          {globalSteps.map((step, idx) => (
             <LegendDot key={step.key} color={bgClasses[idx % bgClasses.length]} label={step.label} />
           ))}
         </div>
@@ -767,12 +761,13 @@ export default function DigitalFlow() {
         </div>
       )}
 
-      {/* Popup Modal */}
+      {/* Popup Modal – uses participant‑specific steps */}
       {showPopup && selectedParticipant && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn">
           <div className="mx-4 w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl animate-slideUp">
             {(() => {
-              const idx = enabledSteps.findIndex(s => s.key === selectedParticipant.stage);
+              const steps = getParticipantSteps(selectedParticipant);
+              const idx = steps.findIndex(s => s.key === selectedParticipant.stage);
               const colors = idx !== -1 ? colorPalette[idx % colorPalette.length] : { from: "#6B7280", to: "#4B5563" };
               return (
                 <div className="px-5 py-3.5" style={{ backgroundImage: `linear-gradient(135deg, ${colors.from}, ${colors.to})` }}>
@@ -796,39 +791,51 @@ export default function DigitalFlow() {
             })()}
 
             <div className="p-4">
-              {/* Flow steps */}
               <div className="mb-4 rounded-xl border border-gray-100 bg-gray-50 p-3">
                 <div className="text-[10px] font-semibold text-gray-400 mb-2">FLOW STEPS</div>
                 <div className="flex items-center justify-between">
-                  {enabledSteps.map((step, idx) => {
-                    const isActive = step.key === selectedParticipant.stage;
-                    const isPast = stepKeys.indexOf(step.key) < stepKeys.indexOf(selectedParticipant.stage);
-                    return (
-                      <React.Fragment key={step.key}>
-                        <div className="flex flex-col items-center">
-                          <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold ${isActive ? "bg-indigo-600 text-white" : isPast ? "bg-green-500 text-white" : "bg-gray-200 text-gray-400"}`}>
-                            {idx + 1}
+                  {(() => {
+                    const steps = getParticipantSteps(selectedParticipant);
+                    const currentIdx = steps.findIndex(s => s.key === selectedParticipant.stage);
+                    return steps.map((step, idx) => {
+                      const isActive = step.key === selectedParticipant.stage;
+                      const isPast = idx < currentIdx;
+                      return (
+                        <React.Fragment key={step.key}>
+                          <div className="flex flex-col items-center">
+                            <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold ${isActive ? "bg-indigo-600 text-white" : isPast ? "bg-green-500 text-white" : "bg-gray-200 text-gray-400"}`}>
+                              {idx + 1}
+                            </div>
+                            <span className="text-[8px] text-gray-500 mt-0.5">{step.label}</span>
+                            {step.isRound && step.holdArea && <span className="text-[6px] text-amber-500 mt-0.5">(Hold)</span>}
                           </div>
-                          <span className="text-[8px] text-gray-500 mt-0.5">{step.label}</span>
-                          {step.isRound && step.holdArea && <span className="text-[6px] text-amber-500 mt-0.5">(Hold)</span>}
-                        </div>
-                        {idx < enabledSteps.length - 1 && <div className="flex-1 h-0.5 mx-1 bg-gray-200" />}
-                      </React.Fragment>
-                    );
-                  })}
+                          {idx < steps.length - 1 && <div className="flex-1 h-0.5 mx-1 bg-gray-200" />}
+                        </React.Fragment>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
+
               <div className="mb-4 rounded-xl border border-gray-100 bg-gray-50 p-3">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-400">Current</span>
-                  <span className="font-medium text-gray-700">{enabledSteps.find(s => s.key === selectedParticipant.stage)?.label || selectedParticipant.stage}</span>
+                  <span className="font-medium text-gray-700">
+                    {(() => {
+                      const steps = getParticipantSteps(selectedParticipant);
+                      const step = steps.find(s => s.key === selectedParticipant.stage);
+                      return step ? step.label : selectedParticipant.stage;
+                    })()}
+                  </span>
                 </div>
                 <div className="mt-1.5 flex items-center justify-between border-t border-gray-100 pt-1.5 text-xs">
                   <span className="text-gray-400">Next</span>
                   <span className="font-semibold text-indigo-600">
                     {(() => {
-                      const nextKey = getNextStage(selectedParticipant.stage);
-                      return nextKey ? enabledSteps.find(s => s.key === nextKey)?.label || nextKey : '—';
+                      const steps = getParticipantSteps(selectedParticipant);
+                      const idx = steps.findIndex(s => s.key === selectedParticipant.stage);
+                      if (idx === -1 || idx === steps.length - 1) return '—';
+                      return steps[idx + 1].label;
                     })()}
                   </span>
                 </div>
@@ -836,7 +843,6 @@ export default function DigitalFlow() {
                   <span className="text-gray-400">Octonorm</span>
                   <span className="font-medium text-gray-700">{rooms.find(r => r.id === selectedParticipant.octonormId)?.name || '—'}</span>
                 </div>
-                {/* ↓ Time Slot – now updates automatically */}
                 <div className="mt-1.5 flex items-center justify-between border-t border-gray-100 pt-1.5 text-xs">
                   <span className="text-gray-400">Time Slot</span>
                   <span className="font-medium text-gray-700">{selectedParticipant.timeSlotTime || '—'}</span>
@@ -846,10 +852,6 @@ export default function DigitalFlow() {
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${trainerColors[selectedParticipant.trainer]?.bg || "bg-gray-400"} text-white`}>
                       {selectedParticipant.trainer}
-                      {(() => {
-                        const t = trainers.find(tr => tr.id === selectedParticipant.trainerId);
-                        return t?.languages ? ` (${t.languages})` : '';
-                      })()}
                     </span>
                     <button onClick={() => handleChangeTrainerForParticipant(selectedParticipant)} className="text-[9px] font-medium text-indigo-600 hover:text-indigo-800 transition">Change</button>
                   </div>
@@ -866,7 +868,8 @@ export default function DigitalFlow() {
                 <button onClick={closePopup} className="flex-1 rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-200">Cancel</button>
                 <button onClick={handleMove} className="flex-1 rounded-xl px-4 py-2.5 text-sm font-medium text-white shadow-lg transition hover:shadow-xl" style={{
                   backgroundImage: `linear-gradient(135deg, ${(() => {
-                    const idx = enabledSteps.findIndex(s => s.key === selectedParticipant.stage);
+                    const steps = getParticipantSteps(selectedParticipant);
+                    const idx = steps.findIndex(s => s.key === selectedParticipant.stage);
                     const colors = idx !== -1 ? colorPalette[idx % colorPalette.length] : { from: "#6B7280", to: "#4B5563" };
                     return `${colors.from}, ${colors.to}`;
                   })()})`
