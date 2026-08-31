@@ -9,6 +9,8 @@ import {
 import { getSetup, updateParticipantOrder, advanceParticipant } from "../../services/api";
 import { useNavigate } from "react-router-dom";
 
+const IMAGE_BASE_URL = import.meta.env.VITE_IMAGE_BASE_URL
+
 // ---- Color palette (10 distinct colours) ----
 const colorPalette = [
   { from: "#8B5CF6", to: "#7C3AED" },
@@ -84,7 +86,7 @@ export default function DigitalFlow() {
             empId: p.employee_id,
             role: p.role || "",
             language: p.language || "",
-            profileImage: p.profile_image ? `http://localhost:5000${p.profile_image}` : null,
+            profileImage: p.profile_image ? `${IMAGE_BASE_URL}${p.profile_image}` : null,
             timer: p.timer || null,
             booth: p.booth || null,
             evaluator: p.evaluator || null,
