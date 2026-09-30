@@ -220,8 +220,8 @@ export default function DigitalFlow() {
   const getParticipantSteps = (participant) => {
     const steps = [];
     steps.push({ key: 'main', label: 'MAIN', isRound: false });
-    if (setup?.hold_area_pre) steps.push({ key: 'holding(pre)', label: 'HOLD (PRE)', isRound: false });
-    if (setup?.preparation_enabled) steps.push({ key: 'preparation', label: 'PREP', isRound: false });
+        if (setup?.hold_area_pre) steps.push({ key: 'holding', label: 'HOLD (PRE)', isRound: false });
+       if (setup?.preparation_enabled) steps.push({ key: 'prep', label: 'PREP', isRound: false });
 
     rounds.forEach(r => {
       if (participant.assignedRoundIds.includes(r.id)) {
@@ -245,7 +245,7 @@ export default function DigitalFlow() {
       }
     });
 
-    if (setup?.hold_area_post) steps.push({ key: 'holding(post)', label: 'HOLD (POST)', isRound: false });
+        if (setup?.hold_area_post) steps.push({ key: 'completed', label: 'HOLD (POST)', isRound: false });
     return steps;
   };
 
@@ -618,7 +618,7 @@ export default function DigitalFlow() {
 
       {/* Top stat strip – now uses global steps */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-3">
-        <div className="relative col-span-2 sm:col-span-1 overflow-hidden rounded-2xl bg-gradient-to-br from-[#0B0E1F] to-[#171B34] p-4 text-white shadow-lg">
+        {/* <div className="relative col-span-2 sm:col-span-1 overflow-hidden rounded-2xl bg-gradient-to-br from-[#0B0E1F] to-[#171B34] p-4 text-white shadow-lg">
           <div className="absolute inset-0 opacity-[0.15]" style={{ backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.5) 1px, transparent 1.5px)", backgroundSize: "10px 10px" }} />
           <div className="relative">
             <p className="text-[10px] font-semibold tracking-wider text-gray-300">TOTAL CONTROLLERS</p>
@@ -627,7 +627,7 @@ export default function DigitalFlow() {
               <Users className="h-3.5 w-3.5 text-gray-200" />
             </div>
           </div>
-        </div>
+        </div> */}
 
         {stats.map((s) => {
           const Icon = s.icon;
